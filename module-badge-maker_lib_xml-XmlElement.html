@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: BaseGraphqlService</title>
+    <title>JSDoc: Class: XmlElement</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: BaseGraphqlService</h1>
+    <h1 class="page-title">Class: XmlElement</h1>
 
     
 
@@ -28,10 +28,10 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature">(abstract) </span></span>
-            <span class="ancestors"><a href="module-core_base-service_base-graphql.html">core/base-service/base-graphql</a>~</span>BaseGraphqlService<span class="signature">()</span><span class="type-signature"></span></h2>
+        <h2><span class="attribs"><span class="type-signature"></span></span>
+            <span class="ancestors"><a href="module-badge-maker_lib_xml.html">badge-maker/lib/xml</a>~</span>XmlElement<span class="signature">(attrs)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description"><p>Services which query a GraphQL endpoint should extend BaseGraphqlService</p></div>
+            <div class="class-description"><p>Representation of an XML element</p></div>
         
     
 </header>
@@ -46,111 +46,7 @@
     
 
     
-    <h4 class="name" id="BaseGraphqlService"><span class="type-signature">(abstract) </span>new BaseGraphqlService<span class="signature">()</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_base-service_base-graphql.js.html">core/base-service/base-graphql.js</a>, <a href="core_base-service_base-graphql.js.html#line19">line 19</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-    </div>
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-        <h3 class="subsection-title">Methods</h3>
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="_parseJson"><span class="type-signature"></span>_parseJson<span class="signature">(buffer)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    <h4 class="name" id="XmlElement"><span class="type-signature"></span>new XmlElement<span class="signature">(attrs)</span><span class="type-signature"></span></h4>
     
 
     
@@ -158,167 +54,7 @@
 
 
 <div class="description">
-    <p>Parse data from JSON endpoint</p>
-</div>
-
-
-
-
-
-
-
-
-
-    <h5>Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>buffer</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">string</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last"><p>JSON repsonse from upstream API</p></td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_base-service_base-graphql.js.html">core/base-service/base-graphql.js</a>, <a href="core_base-service_base-graphql.js.html#line26">line 26</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-<div class="param-desc">
-    <p>Parsed response</p>
-</div>
-
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">object</span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="_requestGraphql"><span class="type-signature">(async) </span>_requestGraphql<span class="signature">(attrs)</span><span class="type-signature"> &rarr; {object}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    <p>Request data from an upstream GraphQL API,
-parse it and validate against a schema</p>
+    <p>Xml Element Constructor</p>
 </div>
 
 
@@ -400,42 +136,7 @@ parse it and validate against a schema</p>
 
         <tr>
             
-                <td class="name"><code>schema</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Joi</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last"><p>Joi schema to validate the response against</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>url</code></td>
+                <td class="name"><code>name</code></td>
             
 
             <td class="type">
@@ -463,20 +164,20 @@ parse it and validate against a schema</p>
                 </td>
             
 
-            <td class="description last"><p>URL to request</p></td>
+            <td class="description last"><p>Name of the XML tag</p></td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>query</code></td>
+                <td class="name"><code>content</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">Array.&lt;(string|module:badge-maker/lib/xml-element~XmlElement)></span>
 
 
             
@@ -484,6 +185,8 @@ parse it and validate against a schema</p>
 
             
                 <td class="attributes">
+                
+                    &lt;optional><br>
                 
 
                 
@@ -495,54 +198,21 @@ parse it and validate against a schema</p>
             
                 <td class="default">
                 
+                    []
+                
                 </td>
             
 
-            <td class="description last"><p>Parsed GraphQL object
-representing the query clause of GraphQL POST body
-e.g. gql<code>{ query { ... } }</code></p></td>
+            <td class="description last"><p>Array of objects to render inside the tag. content may contain a mix of
+string and XmlElement objects. If content is <code>[]</code> or ommitted the
+element will be rendered as a self-closing element.</p></td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>variables</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">object</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last"><p>Variables clause of GraphQL POST body</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>options</code></td>
+                <td class="name"><code>attrs</code></td>
             
 
             <td class="type">
@@ -574,133 +244,7 @@ e.g. gql<code>{ query { ... } }</code></p></td>
                 </td>
             
 
-            <td class="description last"><p>Options to pass to request. See
-<a href="https://github.com/request/request#requestoptions-callback">documentation</a></p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>httpErrorMessages</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">object</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    {}
-                
-                </td>
-            
-
-            <td class="description last"><p>Key-value map of HTTP status codes
-and custom error messages e.g: <code>{ 404: 'package not found' }</code>.
-This can be used to extend or override the
-<a href="https://github.com/badges/shields/blob/master/core/base-service/check-error-response.js#L5">default</a></p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>transformJson</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    data => data
-                
-                </td>
-            
-
-            <td class="description last"><p>Function which takes the raw json and transforms it before
-further procesing. In case of multiple query in a single graphql call and few of them
-throw error, partial data might be used ignoring the error.</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>transformErrors</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    defaultTransformErrors
-                
-                </td>
-            
-
-            <td class="description last"><p>Function which takes an errors object from a GraphQL
-response and returns an instance of ShieldsRuntimeError.
-The default is to return the first entry of the <code>errors</code> array as
-an InvalidResponse.</p></td>
+            <td class="description last"><p>Object representing the tag's attributes as name/value pairs</p></td>
         </tr>
 
     
@@ -748,19 +292,120 @@ an InvalidResponse.</p></td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_base-service_base-graphql.js.html">core/base-service/base-graphql.js</a>, <a href="core_base-service_base-graphql.js.html#line58">line 58</a>
+        <a href="badge-maker_lib_xml.js.html">badge-maker/lib/xml.js</a>, <a href="badge-maker_lib_xml.js.html#line29">line 29</a>
     </li></ul></dd>
     
 
     
 
     
-    <dt class="tag-see">See:</dt>
-    <dd class="tag-see">
-        <ul>
-            <li><a href="https://github.com/request/request#requestoptions-callback">https://github.com/request/request#requestoptions-callback</a></li>
-        </ul>
-    </dd>
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+        <h3 class="subsection-title">Methods</h3>
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="render"><span class="type-signature"></span>render<span class="signature">()</span><span class="type-signature"> &rarr; {string}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>Render the XML element to a string, applying appropriate escaping</p>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="badge-maker_lib_xml.js.html">badge-maker/lib/xml.js</a>, <a href="badge-maker_lib_xml.js.html#line54">line 54</a>
+    </li></ul></dd>
+    
+
+    
+
     
 
     
@@ -784,7 +429,7 @@ an InvalidResponse.</p></td>
 
         
 <div class="param-desc">
-    <p>Parsed response</p>
+    <p>String representation of the XML element</p>
 </div>
 
 
@@ -795,7 +440,7 @@ an InvalidResponse.</p></td>
     </dt>
     <dd>
         
-<span class="param-type">object</span>
+<span class="param-type">string</span>
 
 
     </dd>
