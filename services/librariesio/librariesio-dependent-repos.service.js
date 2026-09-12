@@ -1,9 +1,9 @@
+import { pathParams } from '../index.js'
 import { metric } from '../text-formatters.js'
-import { BaseJsonService } from '../index.js'
-import { fetchProject } from './librariesio-common.js'
+import LibrariesIoBase from './librariesio-base.js'
 
 // https://libraries.io/api#project-dependent-repositories
-export default class LibrariesIoDependentRepos extends BaseJsonService {
+export default class LibrariesIoDependentRepos extends LibrariesIoBase {
   static category = 'other'
 
   static route = {
@@ -11,27 +11,44 @@ export default class LibrariesIoDependentRepos extends BaseJsonService {
     pattern: ':platform/:scope(@[^/]+)?/:packageName',
   }
 
-  static examples = [
-    {
-      title: 'Dependent repos (via libraries.io)',
-      pattern: ':platform/:packageName',
-      namedParams: {
-        platform: 'npm',
-        packageName: 'got',
+  static openApi = {
+    '/librariesio/dependent-repos/{platform}/{packageName}': {
+      get: {
+        summary: 'Dependent repos (via libraries.io)',
+        parameters: pathParams(
+          {
+            name: 'platform',
+            example: 'npm',
+          },
+          {
+            name: 'packageName',
+            example: 'got',
+          },
+        ),
       },
-      staticPreview: this.render({ dependentReposCount: 84000 }),
     },
-    {
-      title: 'Dependent repos (via libraries.io), scoped npm package',
-      pattern: ':platform/:scope/:packageName',
-      namedParams: {
-        platform: 'npm',
-        scope: '@babel',
-        packageName: 'core',
+    '/librariesio/dependent-repos/{platform}/{scope}/{packageName}': {
+      get: {
+        summary: 'Dependent repos (via libraries.io), scoped npm package',
+        parameters: pathParams(
+          {
+            name: 'platform',
+            example: 'npm',
+          },
+          {
+            name: 'scope',
+            example: '@babel',
+          },
+          {
+            name: 'packageName',
+            example: 'core',
+          },
+        ),
       },
-      staticPreview: this.render({ dependentReposCount: 50 }),
     },
-  ]
+  }
+
+  static _cacheLength = 900
 
   static defaultBadgeData = {
     label: 'dependent repos',
@@ -45,14 +62,12 @@ export default class LibrariesIoDependentRepos extends BaseJsonService {
   }
 
   async handle({ platform, scope, packageName }) {
-    const { dependent_repos_count: dependentReposCount } = await fetchProject(
-      this,
-      {
+    const { dependent_repos_count: dependentReposCount } =
+      await this.fetchProject({
         platform,
         scope,
         packageName,
-      }
-    )
+      })
     return this.constructor.render({ dependentReposCount })
   }
 }

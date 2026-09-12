@@ -1,6 +1,6 @@
 import Joi from 'joi'
-import { metric } from '../text-formatters.js'
-import { downloadCount as downloadCountColor } from '../color-formatters.js'
+import { pathParams } from '../index.js'
+import { renderDownloadsBadge } from '../downloads.js'
 import { nonNegativeInteger } from '../validators.js'
 import JetbrainsBase from './jetbrains-base.js'
 
@@ -12,7 +12,7 @@ const intelliJschema = Joi.object({
         .items(
           Joi.object({
             '@_downloads': nonNegativeInteger,
-          })
+          }),
         )
         .single()
         .required(),
@@ -30,21 +30,16 @@ export default class JetbrainsDownloads extends JetbrainsBase {
     pattern: ':pluginId',
   }
 
-  static examples = [
-    {
-      title: 'JetBrains plugins',
-      namedParams: {
-        pluginId: '1347',
+  static openApi = {
+    '/jetbrains/plugin/d/{pluginId}': {
+      get: {
+        summary: 'JetBrains Plugin Downloads',
+        parameters: pathParams({
+          name: 'pluginId',
+          example: '1347',
+        }),
       },
-      staticPreview: this.render({ downloads: 10200000 }),
     },
-  ]
-
-  static render({ downloads }) {
-    return {
-      message: `${metric(downloads)}`,
-      color: downloadCountColor(downloads),
-    }
   }
 
   async handle({ pluginId }) {
@@ -62,13 +57,13 @@ export default class JetbrainsDownloads extends JetbrainsBase {
       const jetbrainsPluginData = await this._requestJson({
         schema: jetbrainsSchema,
         url: `https://plugins.jetbrains.com/api/plugins/${this.constructor._cleanPluginId(
-          pluginId
+          pluginId,
         )}`,
-        errorMessages: { 400: 'not found' },
+        httpErrors: { 400: 'not found' },
       })
       downloads = jetbrainsPluginData.downloads
     }
 
-    return this.constructor.render({ downloads })
+    return renderDownloadsBadge({ downloads })
   }
 }

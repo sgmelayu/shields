@@ -2,15 +2,23 @@
  * Utilities relating to PHP version numbers. This compares version numbers
  * using the algorithm followed by Composer (see
  * https://getcomposer.org/doc/04-schema.md#version).
+ *
+ * @module
  */
-import { promisify } from 'util'
-import request from 'request'
-import { regularUpdate } from '../core/legacy/regular-update.js'
+
+import { fetch } from '../core/base-service/got.js'
+import { getCachedResource } from '../core/base-service/resource-cache.js'
 import { listCompare } from './version.js'
 import { omitv } from './text-formatters.js'
 
-// Return a negative value if v1 < v2,
-// zero if v1 = v2, a positive value otherwise.
+/**
+ * Return a negative value if v1 < v2,
+ * zero if v1 = v2, a positive value otherwise.
+ *
+ * @param {string} v1 - First version for comparison
+ * @param {string} v2 - Second version for comparison
+ * @returns {number} Comparison result (-1, 0 or 1)
+ */
 function asciiVersionCompare(v1, v2) {
   if (v1 < v2) {
     return -1
@@ -21,83 +29,61 @@ function asciiVersionCompare(v1, v2) {
   }
 }
 
-// Take a version without the starting v.
-// eg, '1.0.x-beta'
-// Return { numbers: [1,0,something big], modifier: 2, modifierCount: 1 }
+/**
+ * Take a version without the starting v.
+ * eg, '1.0.x-beta'
+ * Return { numbers: [1,0,something big], modifier: 2, modifierCount: 1 }
+ *
+ * @param {string} version - Version number string
+ * @returns {object} Object containing version details
+ */
 function numberedVersionData(version) {
-  // A version has a numbered part and a modifier part
-  // (eg, 1.0.0-patch, 2.0.x-dev).
-  const parts = version.split('-')
-  const numbered = parts[0]
+  // https://github.com/composer/semver/blob/46d9139568ccb8d9e7cdd4539cab7347568a5e2e/src/VersionParser.php#L39
+  const regex =
+    /^(\d+(?:\.\d+)*)(?:[._-]?(stable|beta|b|RC|alpha|a|patch|pl|p)?((?:[.-]?\d+)*)?)?([.-]?dev)?$/i
+  const match = version.match(regex)
 
-  // Aliases that get caught here.
-  if (numbered === 'dev') {
-    return {
-      numbers: parts[1],
-      modifier: 5,
-      modifierCount: 1,
-    }
+  if (!match || match.length < 5) {
+    throw new Error(`Unparseable PHP version: ${version}`)
   }
 
-  let modifierLevel = 3
+  let modifierLevel = 3 // default: stable/without modifiers
   let modifierLevelCount = 0
+
+  const modifier = match[2] ? match[2].toLowerCase() : ''
+  const modifierCountStr = match[3] || ''
+  const devModifier = match[4] ? match[4].toLowerCase() : ''
 
   // Normalization based on
   // https://github.com/composer/semver/blob/1.5.0/src/VersionParser.php
-
-  if (parts.length > 1) {
-    const modifier = parts[parts.length - 1]
-    const firstLetter = modifier.charCodeAt(0)
-    let modifierLevelCountString
-
-    // Modifiers: alpha < beta < RC < normal < patch < dev
-    if (firstLetter === 97 || firstLetter === 65) {
-      // a / A
-      modifierLevel = 0
-      if (/^alpha/i.test(modifier)) {
-        modifierLevelCountString = +modifier.slice(5)
-      } else {
-        modifierLevelCountString = +modifier.slice(1)
-      }
-    } else if (firstLetter === 98 || firstLetter === 66) {
-      // b / B
-      modifierLevel = 1
-      if (/^beta/i.test(modifier)) {
-        modifierLevelCountString = +modifier.slice(4)
-      } else {
-        modifierLevelCountString = +modifier.slice(1)
-      }
-    } else if (firstLetter === 82 || firstLetter === 114) {
-      // R / r
-      modifierLevel = 2
-      modifierLevelCountString = +modifier.slice(2)
-    } else if (firstLetter === 112) {
-      // p
-      modifierLevel = 4
-      if (/^patch/.test(modifier)) {
-        modifierLevelCountString = +modifier.slice(5)
-      } else {
-        modifierLevelCountString = +modifier.slice(1)
-      }
-    } else if (firstLetter === 100) {
-      // d
-      modifierLevel = 5
-      if (/^dev/.test(modifier)) {
-        modifierLevelCountString = +modifier.slice(3)
-      } else {
-        modifierLevelCountString = +modifier.slice(1)
-      }
-    }
-
-    // If we got the empty string, it defaults to a modifier count of 1.
-    if (!modifierLevelCountString) {
-      modifierLevelCount = 1
-    } else {
-      modifierLevelCount = +modifierLevelCountString
-    }
+  if (modifier === 'alpha' || modifier === 'a') {
+    modifierLevel = 0
+    modifierLevelCount = +modifierCountStr.replace(/[^\d]/g, '') || 1
+  } else if (modifier === 'beta' || modifier === 'b') {
+    modifierLevel = 1
+    modifierLevelCount = +modifierCountStr.replace(/[^\d]/g, '') || 1
+  } else if (modifier === 'rc') {
+    modifierLevel = 2
+    modifierLevelCount = +modifierCountStr.replace(/[^\d]/g, '') || 1
+  } else if (modifier === 'stable' || modifier === '') {
+    modifierLevel = 3
+    modifierLevelCount = 1
+  } else if (modifier === 'patch' || modifier === 'pl' || modifier === 'p') {
+    modifierLevel = 4
+    modifierLevelCount = +modifierCountStr.replace(/[^\d]/g, '') || 1
   }
 
-  // Try to convert to a list of numbers.
+  if (devModifier) {
+    modifierLevel = 5
+    modifierLevelCount = 1
+  }
+
+  /**
+   * Try to convert to a list of numbers.
+   *
+   * @param {string} s - Version number string
+   * @returns {number} Version number integer
+   */
   function toNum(s) {
     let n = +s
     if (Number.isNaN(n)) {
@@ -105,7 +91,7 @@ function numberedVersionData(version) {
     }
     return n
   }
-  const numberList = numbered.split('.').map(toNum)
+  const numberList = match[1].split('.').map(toNum)
 
   return {
     numbers: numberList,
@@ -114,12 +100,15 @@ function numberedVersionData(version) {
   }
 }
 
-// Return a negative value if v1 < v2,
-// zero if v1 = v2,
-// a positive value otherwise.
-//
-// See https://getcomposer.org/doc/04-schema.md#version
-// and https://github.com/badges/shields/issues/319#issuecomment-74411045
+/**
+ * Compares two versions and return an integer based on the result.
+ * See https://getcomposer.org/doc/04-schema.md#version
+ * and https://github.com/badges/shields/issues/319#issuecomment-74411045
+ *
+ * @param {string} v1 - First version
+ * @param {string} v2 - Second version
+ * @returns {number} Negative value if v1 < v2, zero if v1 = v2, else a positive value
+ */
 function compare(v1, v2) {
   // Omit the starting `v`.
   const rawv1 = omitv(v1)
@@ -155,6 +144,12 @@ function compare(v1, v2) {
   return 0
 }
 
+/**
+ * Determines the latest version from a list of versions.
+ *
+ * @param {string[]} versions - List of versions
+ * @returns {string} Latest version
+ */
 function latest(versions) {
   let latest = versions[0]
   for (let i = 1; i < versions.length; i++) {
@@ -165,6 +160,12 @@ function latest(versions) {
   return latest
 }
 
+/**
+ * Determines if a version is stable or not.
+ *
+ * @param {string} version - Version number
+ * @returns {boolean} true if version is stable, else false
+ */
 function isStable(version) {
   const rawVersion = omitv(version)
   let versionData
@@ -177,6 +178,12 @@ function isStable(version) {
   return versionData.modifier === 3 || versionData.modifier === 4
 }
 
+/**
+ * Checks if a version is valid and returns the minor version.
+ *
+ * @param {string} version - Version number
+ * @returns {string} Minor version
+ */
 function minorVersion(version) {
   const result = version.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/)
 
@@ -187,6 +194,13 @@ function minorVersion(version) {
   return `${result[1]}.${result[2] ? result[2] : '0'}`
 }
 
+/**
+ * Reduces the list of php versions that intersect with release versions to a version range (for eg. '5.4 - 7.1', '>= 5.5').
+ *
+ * @param {string[]} versions - List of php versions
+ * @param {string[]} phpReleases - List of php release versions
+ * @returns {string[]} Reduced Version Range (for eg. ['5.4 - 7.1'], ['>= 5.5'])
+ */
 function versionReduction(versions, phpReleases) {
   if (!versions.length) {
     return []
@@ -217,24 +231,29 @@ function versionReduction(versions, phpReleases) {
   return versions
 }
 
+/**
+ * Fetches the PHP release versions from cache if exists, else fetch from the source url and save in cache.
+ *
+ * @async
+ * @param {object} githubApiProvider - Github API provider
+ * @returns {Promise<*>} Promise that resolves to parsed response
+ */
 async function getPhpReleases(githubApiProvider) {
-  return promisify(regularUpdate)({
+  return getCachedResource({
     url: '/repos/php/php-src/git/refs/tags',
-    intervalMillis: 24 * 3600 * 1000, // 1 day
     scraper: tags =>
       Array.from(
         new Set(
           tags
             // only releases
             .filter(
-              tag => tag.ref.match(/^refs\/tags\/php-\d+\.\d+\.\d+$/) != null
+              tag => tag.ref.match(/^refs\/tags\/php-\d+\.\d+\.\d+$/) != null,
             )
             // get minor version of release
-            .map(tag => tag.ref.match(/^refs\/tags\/php-(\d+\.\d+)\.\d+$/)[1])
-        )
+            .map(tag => tag.ref.match(/^refs\/tags\/php-(\d+\.\d+)\.\d+$/)[1]),
+        ),
       ),
-    request: (url, options, cb) =>
-      githubApiProvider.request(request, url, {}, cb),
+    requestFetcher: githubApiProvider.fetch.bind(githubApiProvider, fetch),
   })
 }
 

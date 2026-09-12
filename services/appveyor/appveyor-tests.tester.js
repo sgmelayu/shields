@@ -1,38 +1,26 @@
-import queryString from 'querystring'
-import Joi from 'joi'
+import {
+  isDefaultTestTotals,
+  isDefaultCompactTestTotals,
+  isCustomTestTotals,
+  isCustomCompactTestTotals,
+} from '../test-validators.js'
 import { createServiceTester } from '../tester.js'
 export const t = await createServiceTester()
-
-const isAppveyorTestTotals = Joi.string().regex(
-  /^[0-9]+ passed(, [0-9]+ failed)?(, [0-9]+ skipped)?$/
-)
-
-const isCompactAppveyorTestTotals = Joi.string().regex(
-  /^✔ [0-9]+( \| ✘ [0-9]+)?( \| ➟ [0-9]+)?$/
-)
-
-const isCustomAppveyorTestTotals = Joi.string().regex(
-  /^[0-9]+ good(, [0-9]+ bad)?(, [0-9]+ n\/a)?$/
-)
-
-const isCompactCustomAppveyorTestTotals = Joi.string().regex(
-  /^💃 [0-9]+( \| 🤦‍♀️ [0-9]+)?( \| 🤷 [0-9]+)?$/
-)
 
 t.create('Test status')
   .timeout(10000)
   .get('/NZSmartie/coap-net-iu0to.json')
-  .expectBadge({ label: 'tests', message: isAppveyorTestTotals })
+  .expectBadge({ label: 'tests', message: isDefaultTestTotals })
 
 t.create('Test status on branch')
   .timeout(10000)
   .get('/NZSmartie/coap-net-iu0to/master.json')
-  .expectBadge({ label: 'tests', message: isAppveyorTestTotals })
+  .expectBadge({ label: 'tests', message: isDefaultTestTotals })
 
 t.create('Test status with compact message')
   .timeout(10000)
   .get('/NZSmartie/coap-net-iu0to.json?compact_message')
-  .expectBadge({ label: 'tests', message: isCompactAppveyorTestTotals })
+  .expectBadge({ label: 'tests', message: isDefaultCompactTestTotals })
 
 t.create('Test status with custom labels')
   .timeout(10000)
@@ -43,21 +31,21 @@ t.create('Test status with custom labels')
       skipped_label: 'n/a',
     },
   })
-  .expectBadge({ label: 'tests', message: isCustomAppveyorTestTotals })
+  .expectBadge({ label: 'tests', message: isCustomTestTotals })
 
 t.create('Test status with compact message and custom labels')
   .timeout(10000)
-  .get(
-    `/NZSmartie/coap-net-iu0to.json?${queryString.stringify({
+  .get('/NZSmartie/coap-net-iu0to.json', {
+    qs: {
       compact_message: null,
       passed_label: '💃',
       failed_label: '🤦‍♀️',
       skipped_label: '🤷',
-    })}`
-  )
+    },
+  })
   .expectBadge({
     label: 'tests',
-    message: isCompactCustomAppveyorTestTotals,
+    message: isCustomCompactTestTotals,
   })
 
 t.create('Test status on non-existent project')
@@ -73,7 +61,7 @@ t.create('Test status on project that does exist but has no builds yet')
   .intercept(nock =>
     nock('https://ci.appveyor.com/api/projects/')
       .get('/gruntjs/grunt')
-      .reply(200, {})
+      .reply(200, {}),
   )
   .expectBadge({
     label: 'tests',

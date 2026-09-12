@@ -1,5 +1,5 @@
-import { downloadCount } from '../color-formatters.js'
-import { metric } from '../text-formatters.js'
+import { pathParams } from '../index.js'
+import { renderDownloadsBadge } from '../downloads.js'
 import { BasePuppetForgeModulesService } from './puppetforge-base.js'
 
 export default class PuppetforgeModuleDownloads extends BasePuppetForgeModulesService {
@@ -10,28 +10,28 @@ export default class PuppetforgeModuleDownloads extends BasePuppetForgeModulesSe
     pattern: ':user/:moduleName',
   }
 
-  static examples = [
-    {
-      title: 'Puppet Forge downloads',
-      namedParams: {
-        user: 'camptocamp',
-        moduleName: 'openldap',
+  static openApi = {
+    '/puppetforge/dt/{user}/{moduleName}': {
+      get: {
+        summary: 'Puppet Forge downloads',
+        parameters: pathParams(
+          {
+            name: 'user',
+            example: 'camptocamp',
+          },
+          {
+            name: 'moduleName',
+            example: 'openldap',
+          },
+        ),
       },
-      staticPreview: this.render({ downloads: 720000 }),
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'downloads' }
 
-  static render({ downloads }) {
-    return {
-      message: metric(downloads),
-      color: downloadCount(downloads),
-    }
-  }
-
   async handle({ user, moduleName }) {
-    const data = await this.fetch({ user, moduleName })
-    return this.constructor.render({ downloads: data.downloads })
+    const { downloads } = await this.fetch({ user, moduleName })
+    return renderDownloadsBadge({ downloads })
   }
 }

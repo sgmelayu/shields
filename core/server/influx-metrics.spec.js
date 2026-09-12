@@ -5,6 +5,7 @@ import { expect } from 'chai'
 import log from './log.js'
 import InfluxMetrics from './influx-metrics.js'
 import '../register-chai-plugins.spec.js'
+
 describe('Influx metrics', function () {
   const metricInstance = {
     metrics() {
@@ -46,7 +47,7 @@ describe('Influx metrics', function () {
       const influxMetrics = new InfluxMetrics(metricInstance, customConfig)
 
       expect(await influxMetrics.metrics()).to.be.contain(
-        'instance=test-hostname'
+        'instance=test-hostname',
       )
     })
 
@@ -68,7 +69,7 @@ describe('Influx metrics', function () {
       const influxMetrics = new InfluxMetrics(metricInstance, customConfig)
 
       expect(await influxMetrics.metrics()).to.be.contain(
-        'instance=test-hostname-alias'
+        'instance=test-hostname-alias',
       )
     })
   })
@@ -87,7 +88,7 @@ describe('Influx metrics', function () {
     })
 
     it('should send metrics', async function () {
-      const scope = nock('http://shields-metrics.io/', {
+      const scope = nock('https://shields-metrics.io/', {
         reqheaders: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -95,13 +96,13 @@ describe('Influx metrics', function () {
         .persist()
         .post(
           '/metrics',
-          'prometheus,application=shields,env=test-env,instance=instance2 counter1=11'
+          'prometheus,application=shields,env=test-env,instance=instance2 counter1=11',
         )
         .basicAuth({ user: 'metrics-username', pass: 'metrics-password' })
         .reply(200)
       process.env.INSTANCE_ID = 'instance2'
       influxMetrics = new InfluxMetrics(metricInstance, {
-        url: 'http://shields-metrics.io/metrics',
+        url: 'https://shields-metrics.io/metrics',
         timeoutMillseconds: 100,
         intervalSeconds: 0.001,
         username: 'metrics-username',
@@ -116,7 +117,7 @@ describe('Influx metrics', function () {
       await clock.tickAsync(10)
       expect(scope.isDone()).to.be.equal(
         true,
-        `pending mocks: ${scope.pendingMocks()}`
+        `pending mocks: ${scope.pendingMocks()}`,
       )
     })
   })
@@ -132,7 +133,7 @@ describe('Influx metrics', function () {
     })
 
     const influxMetrics = new InfluxMetrics(metricInstance, {
-      url: 'http://shields-metrics.io/metrics',
+      url: 'https://shields-metrics.io/metrics',
       timeoutMillseconds: 50,
       intervalSeconds: 0,
       username: 'metrics-username',
@@ -149,14 +150,14 @@ describe('Influx metrics', function () {
           .and(
             sinon.match.has(
               'message',
-              'Cannot push metrics. Cause: RequestError: Nock: Disallowed net connect for "shields-metrics.io:80/metrics"'
-            )
-          )
+              'Cannot push metrics. Cause: RequestError: Nock: Disallowed net connect for "shields-metrics.io:443/metrics"',
+            ),
+          ),
       )
     })
 
     it('should log error responses', async function () {
-      nock('http://shields-metrics.io/').persist().post('/metrics').reply(400)
+      nock('https://shields-metrics.io/').persist().post('/metrics').reply(400)
 
       await influxMetrics.sendMetrics()
 
@@ -166,9 +167,9 @@ describe('Influx metrics', function () {
           .and(
             sinon.match.has(
               'message',
-              'Cannot push metrics. http://shields-metrics.io/metrics responded with status code 400'
-            )
-          )
+              'Cannot push metrics. https://shields-metrics.io/metrics responded with status code 400',
+            ),
+          ),
       )
     })
   })

@@ -1,34 +1,26 @@
-import { redirector } from '../index.js'
-import { documentation } from '../maven-metadata/maven-metadata.js'
+import { redirector, pathParam } from '../index.js'
+import { commonParams } from '../maven-metadata/maven-metadata.js'
 
 export default redirector({
   category: 'version',
-  isDeprecated: false,
+  isRetired: false,
   route: {
     base: 'maven-central/v',
     pattern: ':groupId/:artifactId/:versionPrefix?',
   },
-  examples: [
-    {
-      title: 'Maven Central',
-      pattern: ':groupId/:artifactId',
-      queryParams: {
-        versionSuffix: '-android',
-        versionPrefix: '29',
+  openApi: {
+    '/maven-central/v/{groupId}/{artifactId}': {
+      get: {
+        summary: 'Maven Central Version',
+        parameters: [
+          pathParam({ name: 'groupId', example: 'com.google.guava' }),
+          pathParam({ name: 'artifactId', example: 'guava' }),
+          ...commonParams,
+        ],
       },
-      namedParams: {
-        groupId: 'com.google.guava',
-        artifactId: 'guava',
-      },
-      staticPreview: {
-        label: 'maven-central',
-        message: 'v29.0-android',
-        color: 'blue',
-      },
-      documentation,
     },
-  ],
-  transformPath: () => `/maven-metadata/v`,
+  },
+  transformPath: () => '/maven-metadata/v',
   transformQueryParams: ({ groupId, artifactId, versionPrefix }) => {
     const group = encodeURIComponent(groupId).replace(/\./g, '/')
     const artifact = encodeURIComponent(artifactId)

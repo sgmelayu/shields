@@ -1,10 +1,10 @@
+import { pathParams } from '../index.js'
 import { colorScale } from '../color-formatters.js'
-import { BaseJsonService } from '../index.js'
-import { fetchProject } from './librariesio-common.js'
+import LibrariesIoBase from './librariesio-base.js'
 
 const sourceRankColor = colorScale([10, 15, 20, 25, 30])
 
-export default class LibrariesIoSourcerank extends BaseJsonService {
+export default class LibrariesIoSourcerank extends LibrariesIoBase {
   static category = 'rating'
 
   static route = {
@@ -12,27 +12,42 @@ export default class LibrariesIoSourcerank extends BaseJsonService {
     pattern: ':platform/:scope(@[^/]+)?/:packageName',
   }
 
-  static examples = [
-    {
-      title: 'Libraries.io SourceRank',
-      pattern: ':platform/:packageName',
-      namedParams: {
-        platform: 'npm',
-        packageName: 'got',
+  static openApi = {
+    '/librariesio/sourcerank/{platform}/{packageName}': {
+      get: {
+        summary: 'Libraries.io SourceRank',
+        parameters: pathParams(
+          {
+            name: 'platform',
+            example: 'npm',
+          },
+          {
+            name: 'packageName',
+            example: 'got',
+          },
+        ),
       },
-      staticPreview: this.render({ rank: 25 }),
     },
-    {
-      title: 'Libraries.io SourceRank, scoped npm package',
-      pattern: ':platform/:scope/:packageName',
-      namedParams: {
-        platform: 'npm',
-        scope: '@babel',
-        packageName: 'core',
+    '/librariesio/sourcerank/{platform}/{scope}/{packageName}': {
+      get: {
+        summary: 'Libraries.io SourceRank, scoped npm package',
+        parameters: pathParams(
+          {
+            name: 'platform',
+            example: 'npm',
+          },
+          {
+            name: 'scope',
+            example: '@babel',
+          },
+          {
+            name: 'packageName',
+            example: 'core',
+          },
+        ),
       },
-      staticPreview: this.render({ rank: 3 }),
     },
-  ]
+  }
 
   static defaultBadgeData = {
     label: 'sourcerank',
@@ -46,7 +61,7 @@ export default class LibrariesIoSourcerank extends BaseJsonService {
   }
 
   async handle({ platform, scope, packageName }) {
-    const { rank } = await fetchProject(this, {
+    const { rank } = await this.fetchProject({
       platform,
       scope,
       packageName,

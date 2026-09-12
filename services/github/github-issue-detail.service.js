@@ -1,13 +1,13 @@
 import Joi from 'joi'
 import { nonNegativeInteger } from '../validators.js'
-import { formatDate, metric } from '../text-formatters.js'
-import { age } from '../color-formatters.js'
-import { InvalidResponse } from '../index.js'
+import { metric } from '../text-formatters.js'
+import { renderDateBadge } from '../date.js'
+import { InvalidResponse, pathParams } from '../index.js'
 import { GithubAuthV3Service } from './github-auth-service.js'
 import {
   documentation,
-  errorMessagesFor,
-  stateColor,
+  httpErrorsFor,
+  issueStateColor,
   commentsColor,
 } from './github-helpers.js'
 
@@ -19,21 +19,29 @@ const commonSchemaFields = {
 const stateMap = {
   schema: Joi.object({
     ...commonSchemaFields,
-    state: Joi.string().allow('open', 'closed').required(),
+    state: Joi.equal('open', 'closed').required(),
+    state_reason: Joi.string().allow(null), // only for issues
     merged_at: Joi.string().allow(null),
   }).required(),
-  transform: ({ json }) => ({
-    state: json.state,
-    // Because eslint will not be happy with this snake_case name :(
-    merged: json.merged_at !== null,
-  }),
+  transform: ({ json }) => {
+    const mergedAt = json.pull_request?.merged_at ?? json.merged_at
+    const stateWithReason =
+      json.state_reason === 'not_planned' || json.state_reason === 'duplicate'
+        ? json.state_reason.replace('_', ' ')
+        : json.state
+
+    return {
+      state: stateWithReason,
+      merged: mergedAt != null,
+    }
+  },
   render: ({ value, isPR, number }) => {
     const state = value.state
     const label = `${isPR ? 'pull request' : 'issue'} ${number}`
 
     if (!isPR || state === 'open') {
       return {
-        color: stateColor(state),
+        color: issueStateColor(state),
         label,
         message: state,
       }
@@ -86,7 +94,7 @@ const labelMap = {
         Joi.object({
           name: Joi.string().required(),
           color: Joi.string().required(),
-        })
+        }),
       )
       .required(),
   }).required(),
@@ -133,10 +141,32 @@ const ageUpdateMap = {
   }).required(),
   transform: ({ json, property }) =>
     property === 'age' ? json.created_at : json.updated_at,
-  render: ({ property, value }) => ({
-    color: age(value),
-    label: property === 'age' ? 'created' : 'updated',
-    message: formatDate(value),
+  render: ({ property, value }) => {
+    const label = property === 'age' ? 'created' : 'updated'
+    return {
+      ...renderDateBadge(value),
+      label,
+    }
+  },
+}
+
+const milestoneMap = {
+  schema: Joi.object({
+    ...commonSchemaFields,
+    milestone: Joi.object({
+      title: Joi.string().required(),
+    }).allow(null),
+  }).required(),
+  transform: ({ json }) => {
+    if (!json.milestone) {
+      throw new InvalidResponse({ prettyMessage: 'no milestone' })
+    }
+    return json.milestone.title
+  },
+  render: ({ value }) => ({
+    label: 'milestone',
+    message: value,
+    color: 'informational',
   }),
 }
 
@@ -148,6 +178,7 @@ const propertyMap = {
   comments: commentsMap,
   age: ageUpdateMap,
   'last-update': ageUpdateMap,
+  milestone: milestoneMap,
 }
 
 export default class GithubIssueDetail extends GithubAuthV3Service {
@@ -155,37 +186,41 @@ export default class GithubIssueDetail extends GithubAuthV3Service {
   static route = {
     base: 'github',
     pattern:
-      ':issueKind(issues|pulls)/detail/:property(state|title|author|label|comments|age|last-update)/:user/:repo/:number([0-9]+)',
+      ':issueKind(issues|pulls)/detail/:property(state|title|author|label|comments|age|last-update|milestone)/:user/:repo/:number([0-9]+)',
   }
 
-  static examples = [
-    {
-      title: 'GitHub issue/pull request detail',
-      namedParams: {
-        issueKind: 'issues',
-        property: 'state',
-        user: 'badges',
-        repo: 'shields',
-        number: '979',
+  static openApi = {
+    '/github/{issueKind}/detail/{property}/{user}/{repo}/{number}': {
+      get: {
+        summary: 'GitHub issue/pull request detail',
+        description: documentation,
+        parameters: pathParams(
+          {
+            name: 'issueKind',
+            example: 'issues',
+            schema: { type: 'string', enum: this.getEnum('issueKind') },
+          },
+          {
+            name: 'property',
+            example: 'state',
+            schema: { type: 'string', enum: this.getEnum('property') },
+          },
+          {
+            name: 'user',
+            example: 'badges',
+          },
+          {
+            name: 'repo',
+            example: 'shields',
+          },
+          {
+            name: 'number',
+            example: '979',
+          },
+        ),
       },
-      staticPreview: this.render({
-        property: 'state',
-        value: { state: 'closed' },
-        isPR: false,
-        number: '979',
-      }),
-      keywords: [
-        'state',
-        'title',
-        'author',
-        'label',
-        'comments',
-        'age',
-        'last update',
-      ],
-      documentation,
     },
-  ]
+  }
 
   static defaultBadgeData = {
     label: 'issue/pull request',
@@ -200,7 +235,7 @@ export default class GithubIssueDetail extends GithubAuthV3Service {
     return this._requestJson({
       url: `/repos/${user}/${repo}/${issueKind}/${number}`,
       schema: propertyMap[property].schema,
-      errorMessages: errorMessagesFor('issue, pull request or repo not found'),
+      httpErrors: httpErrorsFor('issue, pull request or repo not found'),
     })
   }
 

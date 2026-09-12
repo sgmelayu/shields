@@ -1,6 +1,6 @@
-import { metric } from '../text-formatters.js'
-import { downloadCount } from '../color-formatters.js'
-import { BaseSpigetService, documentation, keywords } from './spiget-base.js'
+import { pathParams } from '../index.js'
+import { renderDownloadsBadge } from '../downloads.js'
+import { BaseSpigetService, description } from './spiget-base.js'
 
 export default class SpigetDownloads extends BaseSpigetService {
   static category = 'downloads'
@@ -10,31 +10,23 @@ export default class SpigetDownloads extends BaseSpigetService {
     pattern: ':resourceId',
   }
 
-  static examples = [
-    {
-      title: 'Spiget Downloads',
-      namedParams: {
-        resourceId: '9089',
+  static openApi = {
+    '/spiget/downloads/{resourceId}': {
+      get: {
+        summary: 'Spiget Downloads',
+        description,
+        parameters: pathParams({
+          name: 'resourceId',
+          example: '9089',
+        }),
       },
-      staticPreview: this.render({ downloads: 560891 }),
-      documentation,
-      keywords,
     },
-  ]
-
-  static defaultBadgeData = {
-    label: 'downloads',
   }
 
-  static render({ downloads }) {
-    return {
-      message: metric(downloads),
-      color: downloadCount(downloads),
-    }
-  }
+  static defaultBadgeData = { label: 'downloads' }
 
   async handle({ resourceId }) {
     const { downloads } = await this.fetch({ resourceId })
-    return this.constructor.render({ downloads })
+    return renderDownloadsBadge({ downloads })
   }
 }

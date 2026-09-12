@@ -1,30 +1,32 @@
-import { promisify } from 'util'
+import Joi from 'joi'
 import semver from 'semver'
-import { regularUpdate } from '../../core/legacy/regular-update.js'
+import { getCachedResource } from '../../core/base-service/resource-cache.js'
+import { optionalDottedVersionNClausesWithOptionalSuffix } from '../validators.js'
 
-// TODO: Incorporate this schema.
-// const schema = Joi.object()
-//   .keys({
-//     offers: Joi.array()
-//       .items(
-//         Joi.object()
-//           .keys({
-//             version: Joi.string()
-//               .regex(/^\d+(\.\d+)?(\.\d+)?$/)
-//               .required(),
-//           })
-//           .required()
-//       )
-//       .required(),
-//   })
-//   .required()
+const schema = Joi.object()
+  .keys({
+    offers: Joi.array()
+      .items(
+        Joi.object()
+          .keys({
+            version: optionalDottedVersionNClausesWithOptionalSuffix,
+          })
+          .required(),
+      )
+      .required(),
+  })
+  .required()
 
-function getOfferedVersions() {
-  return promisify(regularUpdate)({
+async function getOfferedVersions() {
+  return getCachedResource({
     url: 'https://api.wordpress.org/core/version-check/1.7/',
-    intervalMillis: 24 * 3600 * 1000,
-    json: true,
-    scraper: json => json.offers.map(v => v.version),
+    scraper: json => {
+      const { error, value } = schema.validate(json, { allowUnknown: true })
+      if (error) {
+        throw Error(`WordPress version API response: ${error.message}`)
+      }
+      return value.offers.map(v => v.version)
+    },
   })
 }
 

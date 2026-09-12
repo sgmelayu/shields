@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "description": "Shields.io frontend",
   "private": true,
-  "homepage": "http://shields.io",
-  "license": "CC0-1.0",
+  "homepage": "https://shields.io",
+  "license": "(MIT OR Apache-2.0)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/badges/shields.git",
@@ -12,21 +12,5 @@
   },
   "scripts": {
     "test": "echo 'Run tests from parent dir'; false"
-  },
-  "devDependencies": {
-    "gatsby": "*"
-  },
-  "babel": {
-    "plugins": [
-      [
-        "inline-react-svg",
-        {
-          "svgo": false
-        }
-      ]
-    ],
-    "presets": [
-      "babel-preset-gatsby"
-    ]
   }
 }

@@ -1,31 +1,43 @@
+import { pathParam } from '../index.js'
 import SonarBase from './sonar-base.js'
-import { documentation, keywords, queryParamSchema } from './sonar-helpers.js'
+import {
+  documentation,
+  queryParamSchema,
+  openApiQueryParams,
+} from './sonar-helpers.js'
 
 export default class SonarQualityGate extends SonarBase {
   static category = 'analysis'
 
   static route = {
     base: 'sonar',
-    pattern: ':metric(quality_gate|alert_status)/:component',
+    pattern: ':metric(quality_gate|alert_status)/:component/:branch*',
     queryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'Sonar Quality Gate',
-      namedParams: {
-        component: 'swellaby:azdo-shellcheck',
-        metric: 'quality_gate',
+  static openApi = {
+    '/sonar/quality_gate/{component}': {
+      get: {
+        summary: 'Sonar Quality Gate',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'component', example: 'michelin_kstreamplify' }),
+          ...openApiQueryParams,
+        ],
       },
-      queryParams: {
-        server: 'https://sonarcloud.io',
-        sonarVersion: '4.2',
-      },
-      staticPreview: this.render({ qualityState: 'OK' }),
-      keywords,
-      documentation,
     },
-  ]
+    '/sonar/quality_gate/{component}/{branch}': {
+      get: {
+        summary: 'Sonar Quality Gate (branch)',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'component', example: 'michelin_kstreamplify' }),
+          pathParam({ name: 'branch', example: 'main' }),
+          ...openApiQueryParams,
+        ],
+      },
+    },
+  }
 
   static defaultBadgeData = { label: 'quality gate' }
 
@@ -42,11 +54,12 @@ export default class SonarQualityGate extends SonarBase {
     }
   }
 
-  async handle({ component }, { server, sonarVersion }) {
+  async handle({ component, branch }, { server, sonarVersion }) {
     const json = await this.fetch({
       sonarVersion,
       server,
       component,
+      branch,
       metricName: 'alert_status',
     })
     const { alert_status: qualityState } = this.transform({

@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { queryParam } from '../index.js'
 import { renderBuildStatusBadge } from '../build-status.js'
 import JenkinsBase from './jenkins-base.js'
 import {
@@ -28,7 +29,7 @@ const colorStatusMap = {
 }
 
 const schema = Joi.object({
-  color: Joi.allow(...Object.keys(colorStatusMap)).required(),
+  color: Joi.equal(...Object.keys(colorStatusMap)).required(),
 }).required()
 
 export default class JenkinsBuild extends JenkinsBase {
@@ -40,16 +41,20 @@ export default class JenkinsBuild extends JenkinsBase {
     queryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'Jenkins',
-      namedParams: {},
-      queryParams: {
-        jobUrl: 'https://wso2.org/jenkins/view/All%20Builds/job/archetypes',
+  static openApi = {
+    '/jenkins/build': {
+      get: {
+        summary: 'Jenkins Build',
+        parameters: [
+          queryParam({
+            name: 'jobUrl',
+            example: 'https://ci.freebsd.org/job/FreeBSD-main-amd64-test',
+            required: true,
+          }),
+        ],
       },
-      staticPreview: renderBuildStatusBadge({ status: 'passing' }),
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'build' }
 
@@ -68,12 +73,11 @@ export default class JenkinsBuild extends JenkinsBase {
     return { status: colorStatusMap[json.color] }
   }
 
-  async handle(namedParams, { jobUrl, disableStrictSSL }) {
+  async handle(namedParams, { jobUrl }) {
     const json = await this.fetch({
       url: buildUrl({ jobUrl, lastCompletedBuild: false }),
       schema,
-      qs: buildTreeParamQueryString('color'),
-      disableStrictSSL,
+      searchParams: buildTreeParamQueryString('color'),
     })
     const { status } = this.transform({ json })
     return this.constructor.render({ status })

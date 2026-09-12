@@ -9,26 +9,22 @@ function validate(
     includeKeys = false,
     traceErrorMessage = 'Data did not match schema',
     traceSuccessMessage = 'Data after validation',
-    allowAndStripUnknownKeys = true,
   },
   data,
-  schema
+  schema,
 ) {
   if (!schema || !Joi.isSchema(schema)) {
     throw Error('A Joi schema is required')
   }
-  const options = { abortEarly: false }
-  if (allowAndStripUnknownKeys) {
-    options.allowUnknown = true
-    options.stripUnknown = true
-  }
+  const options = { abortEarly: false, allowUnknown: true, stripUnknown: true }
+
   const { error, value } = schema.validate(data, options)
   if (error) {
     trace.logTrace(
       'validate',
       emojic.womanShrugging,
       traceErrorMessage,
-      error.message
+      error.message,
     )
 
     let prettyMessage = prettyErrorMessage

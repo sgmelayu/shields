@@ -1,14 +1,11 @@
-'use strict'
+import { test, given, forCases } from 'sazerac'
+import { expect } from 'chai'
+import snapshot from 'snap-shot-it'
+import prettier from 'prettier'
+import makeBadge from './make-badge.js'
 
-const { test, given, forCases } = require('sazerac')
-const { expect } = require('chai')
-const snapshot = require('snap-shot-it')
-const isSvg = require('is-svg')
-const prettier = require('prettier')
-const makeBadge = require('./make-badge')
-
-function expectBadgeToMatchSnapshot(format) {
-  snapshot(prettier.format(makeBadge(format), { parser: 'html' }))
+async function expectBadgeToMatchSnapshot(format) {
+  snapshot(await prettier.format(makeBadge(format), { parser: 'html' }))
 }
 
 function testColor(color = '', colorAttr = 'color') {
@@ -18,7 +15,7 @@ function testColor(color = '', colorAttr = 'color') {
       message: 'Bob',
       [colorAttr]: color,
       format: 'json',
-    })
+    }),
   ).color
 }
 
@@ -27,11 +24,11 @@ describe('The badge generator', function () {
     test(testColor, () => {
       // valid hex
       forCases([
-        given('#4c1'),
-        given('#4C1'),
-        given('4C1'),
-        given('4c1'),
-      ]).expect('#4c1')
+        given('#4b0'),
+        given('#4b0'),
+        given('4B0'),
+        given('4b0'),
+      ]).expect('#4b0')
       forCases([
         given('#abc123'),
         given('#ABC123'),
@@ -68,27 +65,28 @@ describe('The badge generator', function () {
         given('bluish'),
         given('almostred'),
         given('brightmaroon'),
-        given('cactus')
+        given('cactus'),
       ).expect(undefined)
     })
   })
 
   describe('color aliases', function () {
     test(testColor, () => {
-      forCases([given('#4c1', 'color')]).expect('#4c1')
+      forCases([given('#4b0', 'color')]).expect('#4b0')
     })
   })
 
   describe('SVG', function () {
-    it('should produce SVG', function () {
+    it('should produce SVG', async function () {
+      const { default: isSvg } = await import('is-svg')
       expect(makeBadge({ label: 'cactus', message: 'grown', format: 'svg' }))
         .to.satisfy(isSvg)
         .and.to.include('cactus')
         .and.to.include('grown')
     })
 
-    it('should match snapshot', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshot', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -113,7 +111,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should replace undefined svg badge style with "flat"', function () {
+    it('should replace undefined svg badge style with "flat"', async function () {
+      const { default: isSvg } = await import('is-svg')
       const jsonBadgeWithUnknownStyle = makeBadge({
         label: 'name',
         message: 'Bob',
@@ -137,14 +136,14 @@ describe('The badge generator', function () {
           message: 'Bob',
           format: 'svg',
           style: 'unknown_style',
-        })
+        }),
       ).to.throw(Error, "Unknown badge style: 'unknown_style'")
     })
   })
 
   describe('"flat" template badge generation', function () {
-    it('should match snapshots: message/label, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -154,8 +153,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -166,8 +165,20 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message with custom suffix', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        color: '#b3e',
+        labelColor: '#0f0',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        idSuffix: '1',
+      })
+    })
+
+    it('should match snapshots: message only, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -176,8 +187,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -187,8 +198,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo and labelColor', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo and labelColor', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -199,8 +210,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with links', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with links', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -208,13 +219,35 @@ describe('The badge generator', function () {
         color: '#b3e',
         labelColor: '#0f0',
         links: ['https://shields.io/', 'https://www.google.co.uk/'],
+      })
+    })
+
+    it('should match snapshots: black text when the label color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'flat',
+        color: '#000',
+        labelColor: '#f3f3f3',
+      })
+    })
+
+    it('should match snapshots: black text when the message color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'flat',
+        color: '#e2ffe1',
+        labelColor: '#000',
       })
     })
   })
 
   describe('"flat-square" template badge generation', function () {
-    it('should match snapshots: message/label, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -224,8 +257,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -236,8 +269,21 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message with custom suffix', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'flat-square',
+        color: '#b3e',
+        labelColor: '#0f0',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        idSuffix: '1',
+      })
+    })
+
+    it('should match snapshots: message only, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -246,8 +292,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -257,8 +303,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo and labelColor', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo and labelColor', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -269,8 +315,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with links', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with links', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -278,13 +324,35 @@ describe('The badge generator', function () {
         color: '#b3e',
         labelColor: '#0f0',
         links: ['https://shields.io/', 'https://www.google.co.uk/'],
+      })
+    })
+
+    it('should match snapshots: black text when the label color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'flat-square',
+        color: '#000',
+        labelColor: '#f3f3f3',
+      })
+    })
+
+    it('should match snapshots: black text when the message color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'flat-square',
+        color: '#e2ffe1',
+        labelColor: '#000',
       })
     })
   })
 
   describe('"plastic" template badge generation', function () {
-    it('should match snapshots: message/label, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -294,8 +362,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -306,8 +374,21 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message with custom suffix', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'plastic',
+        color: '#b3e',
+        labelColor: '#0f0',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        idSuffix: '1',
+      })
+    })
+
+    it('should match snapshots: message only, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -316,8 +397,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -327,8 +408,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo and labelColor', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo and labelColor', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -339,8 +420,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with links', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with links', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -348,6 +429,28 @@ describe('The badge generator', function () {
         color: '#b3e',
         labelColor: '#0f0',
         links: ['https://shields.io/', 'https://www.google.co.uk/'],
+      })
+    })
+
+    it('should match snapshots: black text when the label color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'plastic',
+        color: '#000',
+        labelColor: '#f3f3f3',
+      })
+    })
+
+    it('should match snapshots: black text when the message color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'plastic',
+        color: '#e2ffe1',
+        labelColor: '#000',
       })
     })
   })
@@ -361,7 +464,7 @@ describe('The badge generator', function () {
           message: 1999,
           format: 'svg',
           style: 'for-the-badge',
-        })
+        }),
       )
         .to.include('1998')
         .and.to.include('1999')
@@ -374,14 +477,14 @@ describe('The badge generator', function () {
           message: '1 string',
           format: 'svg',
           style: 'for-the-badge',
-        })
+        }),
       )
         .to.include('LABEL')
         .and.to.include('1 STRING')
     })
 
-    it('should match snapshots: message/label, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -391,8 +494,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -403,8 +506,21 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message with custom suffix', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'for-the-badge',
+        color: '#b3e',
+        labelColor: '#0f0',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        idSuffix: '1',
+      })
+    })
+
+    it('should match snapshots: message only, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -413,8 +529,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -424,8 +540,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo and labelColor', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo and labelColor', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -436,8 +552,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with links', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with links', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -445,6 +561,28 @@ describe('The badge generator', function () {
         color: '#b3e',
         labelColor: '#0f0',
         links: ['https://shields.io/', 'https://www.google.co.uk/'],
+      })
+    })
+
+    it('should match snapshots: black text when the label color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'for-the-badge',
+        color: '#000',
+        labelColor: '#f3f3f3',
+      })
+    })
+
+    it('should match snapshots: black text when the message color is light', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'for-the-badge',
+        color: '#e2ffe1',
+        labelColor: '#000',
       })
     })
   })
@@ -457,7 +595,7 @@ describe('The badge generator', function () {
           message: 'some-value',
           format: 'svg',
           style: 'social',
-        })
+        }),
       )
         .to.include('Some-key')
         .and.to.include('some-value')
@@ -471,14 +609,14 @@ describe('The badge generator', function () {
           message: 'some-value',
           format: 'json',
           style: 'social',
-        })
+        }),
       )
         .to.include('""')
         .and.to.include('some-value')
     })
 
-    it('should match snapshots: message/label, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -488,8 +626,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -500,8 +638,21 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, no logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message with custom suffix', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: 'cactus',
+        message: 'grown',
+        format: 'svg',
+        style: 'social',
+        color: '#b3e',
+        labelColor: '#0f0',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        idSuffix: '1',
+      })
+    })
+
+    it('should match snapshots: message only, no logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -510,8 +661,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -521,8 +672,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message only, with logo and labelColor', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message only, with logo and labelColor', async function () {
+      await expectBadgeToMatchSnapshot({
         label: '',
         message: 'grown',
         format: 'svg',
@@ -533,8 +684,8 @@ describe('The badge generator', function () {
       })
     })
 
-    it('should match snapshots: message/label, with links', function () {
-      expectBadgeToMatchSnapshot({
+    it('should match snapshots: message/label, with links', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'cactus',
         message: 'grown',
         format: 'svg',
@@ -547,8 +698,8 @@ describe('The badge generator', function () {
   })
 
   describe('badges with logos should always produce the same badge', function () {
-    it('badge with logo', function () {
-      expectBadgeToMatchSnapshot({
+    it('default badge with logo', async function () {
+      await expectBadgeToMatchSnapshot({
         label: 'label',
         message: 'message',
         format: 'svg',
@@ -557,26 +708,54 @@ describe('The badge generator', function () {
     })
   })
 
-  describe('text colors', function () {
-    it('should use black text when the label color is light', function () {
-      expectBadgeToMatchSnapshot({
-        label: 'cactus',
-        message: 'grown',
+  describe('badges with logo-only should always produce the same badge', function () {
+    it('flat badge, logo-only', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: '',
+        message: '',
         format: 'svg',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
         style: 'flat',
-        color: '#000',
-        labelColor: '#f3f3f3',
       })
     })
 
-    it('should use black text when the message color is light', function () {
-      expectBadgeToMatchSnapshot({
-        label: 'cactus',
-        message: 'grown',
+    it('flat-square badge, logo-only', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: '',
+        message: '',
         format: 'svg',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        style: 'flat-square',
+      })
+    })
+
+    it('for-the-badge badge, logo-only', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: '',
+        message: '',
+        format: 'svg',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
         style: 'for-the-badge',
-        color: '#e2ffe1',
-        labelColor: '#000',
+      })
+    })
+
+    it('social badge, logo-only', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: '',
+        message: '',
+        format: 'svg',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        style: 'social',
+      })
+    })
+
+    it('plastic badge, logo-only', async function () {
+      await expectBadgeToMatchSnapshot({
+        label: '',
+        message: '',
+        format: 'svg',
+        logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxu',
+        style: 'plastic',
       })
     })
   })

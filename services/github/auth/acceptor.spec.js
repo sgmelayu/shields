@@ -1,19 +1,20 @@
 import { expect } from 'chai'
 import Camp from '@shields_io/camp'
-import FormData from 'form-data'
 import sinon from 'sinon'
 import portfinder from 'portfinder'
-import queryString from 'query-string'
+import qs from 'qs'
 import nock from 'nock'
+import '../../../core/register-chai-plugins.spec.js'
 import got from '../../../core/got-test-client.js'
 import GithubConstellation from '../github-constellation.js'
 import { setRoutes } from './acceptor.js'
 
 const fakeClientId = 'githubdabomb'
+const fakeClientSecret = 'foobar'
 
 describe('Github token acceptor', function () {
   const oauthHelper = GithubConstellation._createOauthHelper({
-    private: { gh_client_id: fakeClientId },
+    private: { gh_client_id: fakeClientId, gh_client_secret: fakeClientSecret },
   })
 
   let port, baseUrl
@@ -49,11 +50,11 @@ describe('Github token acceptor', function () {
 
     expect(res.statusCode).to.equal(302)
 
-    const qs = queryString.stringify({
+    const queryString = qs.stringify({
       client_id: fakeClientId,
       redirect_uri: 'https://img.shields.io/github-auth/done',
     })
-    const expectedLocationHeader = `https://github.com/login/oauth/authorize?${qs}`
+    const expectedLocationHeader = `https://github.com/login/oauth/authorize?${queryString}`
     expect(res.headers.location).to.equal(expectedLocationHeader)
   })
 
@@ -62,7 +63,7 @@ describe('Github token acceptor', function () {
       it('should return an error', async function () {
         const res = await got(`${baseUrl}/github-auth/done`)
         expect(res.body).to.equal(
-          'GitHub OAuth authentication failed to provide a code.'
+          'GitHub OAuth authentication failed to provide a code.',
         )
       })
     })
@@ -72,17 +73,19 @@ describe('Github token acceptor', function () {
 
     context('a code is provided', function () {
       let scope
+      let tokenResponse
       beforeEach(function () {
         nock.enableNetConnect(/127\.0\.0\.1/)
+        tokenResponse = { access_token: fakeAccessToken }
 
         scope = nock('https://github.com')
           .post('/login/oauth/access_token')
           .reply((url, requestBody) => {
-            expect(queryString.parse(requestBody).code).to.equal(fakeCode)
-            return [
-              200,
-              queryString.stringify({ access_token: fakeAccessToken }),
-            ]
+            const parsedBody = qs.parse(requestBody)
+            expect(parsedBody.client_id).to.equal(fakeClientId)
+            expect(parsedBody.client_secret).to.equal(fakeClientSecret)
+            expect(parsedBody.code).to.equal(fakeCode)
+            return [200, qs.stringify(tokenResponse)]
           })
       })
 
@@ -110,11 +113,27 @@ describe('Github token acceptor', function () {
         const res = await got.post(`${baseUrl}/github-auth/done`, {
           body: form,
         })
-        expect(res.body).to.startWith(
-          '<p>Shields.io has received your app-specific GitHub user token.'
-        )
-
+        expect(
+          res.body.startsWith(
+            '<p>Shields.io has received your app-specific GitHub user token.',
+          ),
+        ).to.be.true
         expect(onTokenAccepted).to.have.been.calledWith(fakeAccessToken)
+      })
+
+      it('should pass token scopes from the OAuth response', async function () {
+        tokenResponse.scope = 'read:packages, read:user'
+
+        const form = new FormData()
+        form.append('code', fakeCode)
+
+        await got.post(`${baseUrl}/github-auth/done`, {
+          body: form,
+        })
+
+        expect(onTokenAccepted).to.have.been.calledWith(fakeAccessToken, {
+          scopes: ['read:packages', 'read:user'],
+        })
       })
     })
   })

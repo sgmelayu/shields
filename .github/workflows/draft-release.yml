@@ -1,16 +1,20 @@
 name: Draft Release
 on:
   schedule:
-    - cron: '0 1 1 * *'
-    # At 01:00 on the first day of every month
+    - cron: '0 1 15 * *'
+    # At 01:00 on the 15th day of every month (~two-week delay after dependabot)
   workflow_dispatch:
 
+permissions:
+  pull-requests: write
+  contents: write
+
 jobs:
-  build:
+  draft-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
 
       - name: Draft Release
         uses: ./.github/actions/draft-release

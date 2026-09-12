@@ -1,26 +1,25 @@
 import Joi from 'joi'
-import { metric } from '../text-formatters.js'
-import { downloadCount } from '../color-formatters.js'
+import { renderDownloadsBadge } from '../downloads.js'
 import { optionalUrl } from '../validators.js'
+import { pathParam, queryParam } from '../index.js'
 import {
-  keywords,
   BasePackagistService,
   customServerDocumentationFragment,
   cacheDocumentationFragment,
+  description,
 } from './packagist-base.js'
 
 const periodMap = {
   dm: {
     field: 'monthly',
-    suffix: '/month',
+    interval: 'month',
   },
   dd: {
     field: 'daily',
-    suffix: '/day',
+    interval: 'day',
   },
   dt: {
     field: 'total',
-    suffix: '',
   },
 }
 
@@ -43,61 +42,55 @@ export default class PackagistDownloads extends BasePackagistService {
 
   static route = {
     base: 'packagist',
-    pattern: ':interval(dm|dd|dt)/:user/:repo',
+    pattern: ':interval/:user/:repo',
     queryParamSchema,
   }
+  static routeEnum = ['dd', 'dm', 'dt']
 
-  static examples = [
-    {
-      title: 'Packagist Downloads',
-      namedParams: {
-        interval: 'dm',
-        user: 'doctrine',
-        repo: 'orm',
+  static openApi = {
+    '/packagist/{interval}/{user}/{repo}': {
+      get: {
+        summary: 'Packagist Downloads',
+        description: description + cacheDocumentationFragment,
+        parameters: [
+          pathParam({
+            name: 'interval',
+            example: 'dm',
+            schema: { type: 'string', enum: this.getEnum('interval') },
+            description: 'Daily, Monthly, or Total downloads',
+          }),
+          pathParam({
+            name: 'user',
+            example: 'guzzlehttp',
+          }),
+          pathParam({
+            name: 'repo',
+            example: 'guzzle',
+          }),
+          queryParam({
+            name: 'server',
+            description: customServerDocumentationFragment,
+            example: 'https://packagist.org',
+          }),
+        ],
       },
-      staticPreview: this.render({
-        downloads: 1000000,
-        interval: 'dm',
-      }),
-      keywords,
-      documentation: cacheDocumentationFragment,
     },
-    {
-      title: 'Packagist Downloads (custom server)',
-      namedParams: {
-        interval: 'dm',
-        user: 'doctrine',
-        repo: 'orm',
-      },
-      staticPreview: this.render({
-        downloads: 1000000,
-        interval: 'dm',
-      }),
-      queryParams: { server: 'https://packagist.org' },
-      keywords,
-      documentation:
-        customServerDocumentationFragment + cacheDocumentationFragment,
-    },
-  ]
-
-  static defaultBadgeData = {
-    label: 'downloads',
   }
 
-  static render({ downloads, interval }) {
-    return {
-      message: metric(downloads) + periodMap[interval].suffix,
-      color: downloadCount(downloads),
-    }
-  }
+  static defaultBadgeData = { label: 'downloads' }
 
-  async handle({ interval, user, repo }, { server }) {
+  async handle({ interval: period, user, repo }, { server }) {
     const {
       package: { downloads },
-    } = await this.fetchByJsonAPI({ user, repo, schema, server })
-
-    return this.constructor.render({
-      downloads: downloads[periodMap[interval].field],
+    } = await this.fetchByJsonAPI({
+      user,
+      repo,
+      schema,
+      server,
+    })
+    const { interval, field } = periodMap[period]
+    return renderDownloadsBadge({
+      downloads: downloads[field],
       interval,
     })
   }

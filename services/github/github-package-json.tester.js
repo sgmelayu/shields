@@ -21,6 +21,17 @@ t.create('Package version (repo not found)')
     message: 'repo not found, branch not found, or package.json missing',
   })
 
+t.create('Package version (monorepo)')
+  .get(
+    `/v/metabolize/anafanafo.json?filename=${encodeURIComponent(
+      'packages/char-width-table-builder/package.json',
+    )}`,
+  )
+  .expectBadge({
+    label: 'version',
+    message: isSemver,
+  })
+
 t.create('Package name')
   .get('/n/badges/shields.json')
   .expectBadge({ label: 'name', message: 'shields.io' })
@@ -56,7 +67,7 @@ t.create('Optional dependency version')
 
 t.create('Dev dependency version')
   .get(
-    '/dependency-version/paulmelnikow/react-boxplot/dev/react.json?label=react%20tested'
+    '/dependency-version/paulmelnikow/react-boxplot/dev/react.json?label=react%20tested',
   )
   .expectBadge({
     label: 'react tested',
@@ -73,8 +84,8 @@ t.create('Prod dependency version')
 t.create('Prod dependency version (monorepo)')
   .get(
     `/dependency-version/metabolize/anafanafo/puppeteer.json?filename=${encodeURIComponent(
-      'packages/char-width-table-builder/package.json'
-    )}`
+      'packages/char-width-table-builder/package.json',
+    )}`,
   )
   .expectBadge({
     label: 'puppeteer',
@@ -82,16 +93,16 @@ t.create('Prod dependency version (monorepo)')
   })
 
 t.create('Scoped dependency')
-  .get('/dependency-version/badges/shields/dev/@babel/core.json')
+  .get('/dependency-version/badges/shields/dev/@docusaurus/core.json')
   .expectBadge({
-    label: '@babel/core',
+    label: '@docusaurus/core',
     message: semverRange,
   })
 
 t.create('Scoped dependency on branch')
-  .get('/dependency-version/zeit/next.js/dev/babel-eslint/alpha.json')
+  .get('/dependency-version/zeit/next.js/dev/@babel/eslint-parser/canary.json')
   .expectBadge({
-    label: 'babel-eslint',
+    label: '@babel/eslint-parser',
     message: semverRange,
   })
 
@@ -100,4 +111,18 @@ t.create('Unknown dependency')
   .expectBadge({
     label: 'dependency',
     message: 'dev dependency not found',
+  })
+
+t.create('Package manager (strips build metadata suffix)')
+  .get('/packageManager/nodejs/corepack.json')
+  .expectBadge({
+    label: 'packageManager',
+    message: Joi.string().regex(/^(npm|yarn|pnpm|bun)@[\d.]+$/),
+  })
+
+t.create('Package manager (repo not found)')
+  .get('/packageManager/badges/helmets.json')
+  .expectBadge({
+    label: 'package.json',
+    message: 'repo not found, branch not found, or package.json missing',
   })

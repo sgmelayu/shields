@@ -1,26 +1,10 @@
 import Joi from 'joi'
-import { BaseJsonService, NotFound } from '../index.js'
-import {
-  renderVersionBadge,
-  searchServiceUrl,
-  stripBuildMetadata,
-  selectVersion,
-} from '../nuget/nuget-helpers.js'
+import { BaseJsonService, NotFound, pathParams } from '../index.js'
+import { stripBuildMetadata, selectVersion } from '../nuget/nuget-helpers.js'
+import { renderVersionBadge } from '../version.js'
 
-const schema = Joi.object({
-  items: Joi.array()
-    .items(
-      Joi.object({
-        items: Joi.array().items(
-          Joi.object({
-            catalogEntry: Joi.object({
-              version: Joi.string().required(),
-            }).required(),
-          })
-        ),
-      }).required()
-    )
-    .default([]),
+const packagesSchema = Joi.object({
+  versions: Joi.array().items(Joi.string()).required(),
 }).required()
 
 class FeedzVersionService extends BaseJsonService {
@@ -28,77 +12,72 @@ class FeedzVersionService extends BaseJsonService {
 
   static route = {
     base: 'feedz',
-    pattern: ':which(v|vpre)/:organization/:repository/:packageName',
+    pattern: ':variant/:organization/:repository/:packageName',
   }
+  static routeEnum = ['v', 'vpre']
 
-  static examples = [
-    {
-      title: 'Feedz',
-      pattern: 'v/:organization/:repository/:packageName',
-      namedParams: {
-        organization: 'shieldstests',
-        repository: 'mongodb',
-        packageName: 'MongoDB.Driver.Core',
+  static openApi = {
+    '/feedz/{variant}/{organization}/{repository}/{packageName}': {
+      get: {
+        summary: 'Feedz Version',
+        parameters: pathParams(
+          {
+            name: 'variant',
+            example: 'v',
+            description: 'version or version including pre-releases',
+            schema: { type: 'string', enum: this.getEnum('variant') },
+          },
+          {
+            name: 'organization',
+            example: 'shieldstests',
+          },
+          {
+            name: 'repository',
+            example: 'mongodb',
+          },
+          {
+            name: 'packageName',
+            example: 'MongoDB.Driver.Core',
+          },
+        ),
       },
-      staticPreview: this.render({ version: '2.10.4' }),
     },
-    {
-      title: 'Feedz (with prereleases)',
-      pattern: 'vpre/:organization/:repository/:packageName',
-      namedParams: {
-        organization: 'shieldstests',
-        repository: 'mongodb',
-        packageName: 'MongoDB.Driver.Core',
-      },
-      staticPreview: this.render({ version: '2.11.0-beta2' }),
-    },
-  ]
+  }
 
   static defaultBadgeData = {
     label: 'feedz',
   }
 
-  static render(props) {
-    return renderVersionBadge(props)
+  packagesUrl({ organization, repository, packageName }) {
+    return `https://f.feedz.io/${organization}/${repository}/nuget/v3/packages/${packageName}/index.json`
   }
 
-  apiUrl({ organization, repository }) {
-    return `https://f.feedz.io/${organization}/${repository}/nuget`
+  transform({ versions, includePrereleases }) {
+    if (versions.length === 0) {
+      throw new NotFound({ prettyMessage: 'package not found' })
+    }
+    // Strip build metadata and select the appropriate version
+    const cleanedVersions = versions.map(v => stripBuildMetadata(v))
+    return selectVersion(cleanedVersions, includePrereleases)
   }
 
-  async fetch({ baseUrl, packageName }) {
-    const registrationsBaseUrl = await searchServiceUrl(
-      baseUrl,
-      'RegistrationsBaseUrl'
-    )
-    return await this._requestJson({
-      schema,
-      url: `${registrationsBaseUrl}${packageName}/index.json`,
-      errorMessages: {
+  async handle({ variant, organization, repository, packageName }) {
+    const includePrereleases = variant === 'vpre'
+    const url = this.packagesUrl({ organization, repository, packageName })
+    const json = await this._requestJson({
+      schema: packagesSchema,
+      url,
+      httpErrors: {
         404: 'repository or package not found',
       },
     })
-  }
-
-  transform({ json, includePrereleases }) {
-    const versions = json.items.flatMap(tl =>
-      tl.items.map(i => stripBuildMetadata(i.catalogEntry.version))
-    )
-    if (versions.length >= 1) {
-      return selectVersion(versions, includePrereleases)
-    } else {
-      throw new NotFound({ prettyMessage: 'package not found' })
-    }
-  }
-
-  async handle({ which, organization, repository, packageName }) {
-    const includePrereleases = which === 'vpre'
-    const baseUrl = this.apiUrl({ organization, repository })
-    const json = await this.fetch({ baseUrl, packageName })
-    const version = this.transform({ json, includePrereleases })
-    return this.constructor.render({
+    const version = this.transform({
+      versions: json.versions,
+      includePrereleases,
+    })
+    return renderVersionBadge({
       version,
-      feed: FeedzVersionService.defaultBadgeData.label,
+      defaultLabel: FeedzVersionService.defaultBadgeData.label,
     })
   }
 }

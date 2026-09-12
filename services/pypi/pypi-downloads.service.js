@@ -1,10 +1,8 @@
 import Joi from 'joi'
-import { downloadCount } from '../color-formatters.js'
-import { metric } from '../text-formatters.js'
 import { nonNegativeInteger } from '../validators.js'
-import { BaseJsonService } from '../index.js'
-
-const keywords = ['python']
+import { BaseJsonService, pathParam } from '../index.js'
+import { renderDownloadsBadge } from '../downloads.js'
+import { pypiPackageParam } from './pypi-base.js'
 
 const schema = Joi.object({
   data: Joi.object({
@@ -16,16 +14,16 @@ const schema = Joi.object({
 
 const periodMap = {
   dd: {
-    api_field: 'last_day',
-    suffix: '/day',
+    apiField: 'last_day',
+    interval: 'day',
   },
   dw: {
-    api_field: 'last_week',
-    suffix: '/week',
+    apiField: 'last_week',
+    interval: 'week',
   },
   dm: {
-    api_field: 'last_month',
-    suffix: '/month',
+    apiField: 'last_month',
+    interval: 'month',
   },
 }
 
@@ -39,40 +37,43 @@ export default class PypiDownloads extends BaseJsonService {
     pattern: ':period(dd|dw|dm)/:packageName',
   }
 
-  static examples = [
-    {
-      title: 'PyPI - Downloads',
-      namedParams: {
-        period: 'dd',
-        packageName: 'Django',
+  static openApi = {
+    '/pypi/{period}/{packageName}': {
+      get: {
+        summary: 'PyPI Downloads',
+        description:
+          'Python package downloads from [pypistats](https://pypistats.org/)',
+        parameters: [
+          pathParam({
+            name: 'period',
+            example: 'dd',
+            schema: { type: 'string', enum: this.getEnum('period') },
+            description: 'Daily, Weekly, or Monthly downloads',
+          }),
+          pypiPackageParam,
+        ],
       },
-      staticPreview: this.render({ period: 'dd', downloads: 14000 }),
-      keywords,
     },
-  ]
+  }
+
+  static _cacheLength = 43200
 
   static defaultBadgeData = { label: 'downloads' }
-
-  static render({ period, downloads }) {
-    return {
-      message: `${metric(downloads)}${periodMap[period].suffix}`,
-      color: downloadCount(downloads),
-    }
-  }
 
   async fetch({ packageName }) {
     return this._requestJson({
       url: `https://pypistats.org/api/packages/${packageName.toLowerCase()}/recent`,
       schema,
-      errorMessages: { 404: 'package not found' },
+      httpErrors: { 404: 'package not found' },
     })
   }
 
   async handle({ period, packageName }) {
-    const json = await this.fetch({ packageName })
-    return this.constructor.render({
-      period,
-      downloads: json.data[periodMap[period].api_field],
+    const { apiField, interval } = periodMap[period]
+    const { data } = await this.fetch({ packageName })
+    return renderDownloadsBadge({
+      downloads: data[apiField],
+      interval,
     })
   }
 }

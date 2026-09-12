@@ -29,33 +29,33 @@ class DummyGraphqlService extends BaseGraphqlService {
 
 describe('BaseGraphqlService', function () {
   describe('Making requests', function () {
-    let sendAndCacheRequest
+    let requestFetcher
     beforeEach(function () {
-      sendAndCacheRequest = sinon.stub().returns(
+      requestFetcher = sinon.stub().returns(
         Promise.resolve({
           buffer: '{"some": "json"}',
           res: { statusCode: 200 },
-        })
+        }),
       )
     })
 
-    it('invokes _sendAndCacheRequest', async function () {
+    it('invokes _requestFetcher', async function () {
       await DummyGraphqlService.invoke(
-        { sendAndCacheRequest },
-        { handleInternalErrors: false }
+        { requestFetcher },
+        { handleInternalErrors: false },
       )
 
-      expect(sendAndCacheRequest).to.have.been.calledOnceWith(
+      expect(requestFetcher).to.have.been.calledOnceWith(
         'http://example.com/graphql',
         {
-          body: '{"query":"{\\n  requiredString\\n}\\n","variables":{}}',
+          body: '{"query":"{\\n  requiredString\\n}","variables":{}}',
           headers: { Accept: 'application/json' },
           method: 'POST',
-        }
+        },
       )
     })
 
-    it('forwards options to _sendAndCacheRequest', async function () {
+    it('forwards options to _requestFetcher', async function () {
       class WithOptions extends DummyGraphqlService {
         async handle() {
           const { value } = await this._requestGraphql({
@@ -66,55 +66,55 @@ describe('BaseGraphqlService', function () {
                 requiredString
               }
             `,
-            options: { qs: { queryParam: 123 } },
+            options: { searchParams: { queryParam: 123 } },
           })
           return { message: value }
         }
       }
 
       await WithOptions.invoke(
-        { sendAndCacheRequest },
-        { handleInternalErrors: false }
+        { requestFetcher },
+        { handleInternalErrors: false },
       )
 
-      expect(sendAndCacheRequest).to.have.been.calledOnceWith(
+      expect(requestFetcher).to.have.been.calledOnceWith(
         'http://example.com/graphql',
         {
-          body: '{"query":"{\\n  requiredString\\n}\\n","variables":{}}',
+          body: '{"query":"{\\n  requiredString\\n}","variables":{}}',
           headers: { Accept: 'application/json' },
           method: 'POST',
-          qs: { queryParam: 123 },
-        }
+          searchParams: { queryParam: 123 },
+        },
       )
     })
   })
 
   describe('Making badges', function () {
     it('handles valid json responses', async function () {
-      const sendAndCacheRequest = async () => ({
+      const requestFetcher = async () => ({
         buffer: '{"requiredString": "some-string"}',
         res: { statusCode: 200 },
       })
       expect(
         await DummyGraphqlService.invoke(
-          { sendAndCacheRequest },
-          { handleInternalErrors: false }
-        )
+          { requestFetcher },
+          { handleInternalErrors: false },
+        ),
       ).to.deep.equal({
         message: 'some-string',
       })
     })
 
     it('handles json responses which do not match the schema', async function () {
-      const sendAndCacheRequest = async () => ({
+      const requestFetcher = async () => ({
         buffer: '{"unexpectedKey": "some-string"}',
         res: { statusCode: 200 },
       })
       expect(
         await DummyGraphqlService.invoke(
-          { sendAndCacheRequest },
-          { handleInternalErrors: false }
-        )
+          { requestFetcher },
+          { handleInternalErrors: false },
+        ),
       ).to.deep.equal({
         isError: true,
         color: 'lightgray',
@@ -123,15 +123,15 @@ describe('BaseGraphqlService', function () {
     })
 
     it('handles unparseable json responses', async function () {
-      const sendAndCacheRequest = async () => ({
+      const requestFetcher = async () => ({
         buffer: 'not json',
         res: { statusCode: 200 },
       })
       expect(
         await DummyGraphqlService.invoke(
-          { sendAndCacheRequest },
-          { handleInternalErrors: false }
-        )
+          { requestFetcher },
+          { handleInternalErrors: false },
+        ),
       ).to.deep.equal({
         isError: true,
         color: 'lightgray',
@@ -142,15 +142,15 @@ describe('BaseGraphqlService', function () {
 
   describe('Error handling', function () {
     it('handles generic error', async function () {
-      const sendAndCacheRequest = async () => ({
+      const requestFetcher = async () => ({
         buffer: '{ "errors": [ { "message": "oh noes!!" } ] }',
         res: { statusCode: 200 },
       })
       expect(
         await DummyGraphqlService.invoke(
-          { sendAndCacheRequest },
-          { handleInternalErrors: false }
-        )
+          { requestFetcher },
+          { handleInternalErrors: false },
+        ),
       ).to.deep.equal({
         isError: true,
         color: 'lightgray',
@@ -181,15 +181,15 @@ describe('BaseGraphqlService', function () {
         }
       }
 
-      const sendAndCacheRequest = async () => ({
+      const requestFetcher = async () => ({
         buffer: '{ "errors": [ { "message": "oh noes!!" } ] }',
         res: { statusCode: 200 },
       })
       expect(
         await WithErrorHandler.invoke(
-          { sendAndCacheRequest },
-          { handleInternalErrors: false }
-        )
+          { requestFetcher },
+          { handleInternalErrors: false },
+        ),
       ).to.deep.equal({
         isError: true,
         color: 'lightgray',

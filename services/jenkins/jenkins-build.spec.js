@@ -1,9 +1,17 @@
-import { expect } from 'chai'
-import nock from 'nock'
 import { test, forCases, given } from 'sazerac'
 import { renderBuildStatusBadge } from '../build-status.js'
-import { cleanUpNockAfterEach, defaultContext } from '../test-helpers.js'
+import { testAuth } from '../test-helpers.js'
 import JenkinsBuild from './jenkins-build.service.js'
+
+const authConfigOverride = {
+  public: {
+    services: {
+      jenkins: {
+        authorizedOrigins: ['https://ci.freebsd.org'],
+      },
+    },
+  },
+}
 
 describe('JenkinsBuild', function () {
   test(JenkinsBuild.prototype.transform, () => {
@@ -43,63 +51,27 @@ describe('JenkinsBuild', function () {
       color: 'yellow',
     })
     given({ status: 'passing' }).expect(
-      renderBuildStatusBadge({ status: 'passing' })
+      renderBuildStatusBadge({ status: 'passing' }),
     )
     given({ status: 'failing' }).expect(
-      renderBuildStatusBadge({ status: 'failing' })
+      renderBuildStatusBadge({ status: 'failing' }),
     )
     given({ status: 'building' }).expect(
-      renderBuildStatusBadge({ status: 'building' })
+      renderBuildStatusBadge({ status: 'building' }),
     )
     given({ status: 'not built' }).expect(
-      renderBuildStatusBadge({ status: 'not built' })
+      renderBuildStatusBadge({ status: 'not built' }),
     )
   })
 
   describe('auth', function () {
-    cleanUpNockAfterEach()
-
-    const user = 'admin'
-    const pass = 'password'
-    const config = {
-      public: {
-        services: {
-          jenkins: {
-            authorizedOrigins: ['https://jenkins.ubuntu.com'],
-          },
-        },
-      },
-      private: {
-        jenkins_user: user,
-        jenkins_pass: pass,
-      },
-    }
-
     it('sends the auth information as configured', async function () {
-      const scope = nock('https://jenkins.ubuntu.com')
-        .get('/server/job/curtin-vmtest-daily-x/api/json?tree=color')
-        // This ensures that the expected credentials are actually being sent with the HTTP request.
-        // Without this the request wouldn't match and the test would fail.
-        .basicAuth({ user, pass })
-        .reply(200, { color: 'blue' })
-
-      expect(
-        await JenkinsBuild.invoke(
-          defaultContext,
-          config,
-          {},
-          {
-            jobUrl:
-              'https://jenkins.ubuntu.com/server/job/curtin-vmtest-daily-x',
-          }
-        )
-      ).to.deep.equal({
-        label: undefined,
-        message: 'passing',
-        color: 'brightgreen',
-      })
-
-      scope.done()
+      return testAuth(
+        JenkinsBuild,
+        'BasicAuth',
+        { color: 'blue' },
+        { configOverride: authConfigOverride },
+      )
     })
   })
 })

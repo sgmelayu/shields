@@ -1,6 +1,31 @@
+import Joi from 'joi'
 // see https://github.com/badges/shields/pull/1690
 import { NotFound } from '../index.js'
 const dockerBlue = '066da5'
+const maxDockerHubAnonymousPages = 10
+
+const archEnum = [
+  'amd64',
+  'arm',
+  'arm64',
+  's390x',
+  '386',
+  'ppc64',
+  'ppc64le',
+  'wasm',
+  'mips',
+  'mipsle',
+  'mips64',
+  'mips64le',
+  'riscv64',
+  'loong64',
+]
+
+// Valid architecture values: https://golang.org/doc/install/source#environment (GOARCH)
+const archSchema = Joi.alternatives(
+  Joi.string().valid(...archEnum),
+  Joi.number().valid(386).cast('string'),
+)
 
 function buildDockerUrl(badgeName, includeTagRoute) {
   if (includeTagRoute) {
@@ -20,25 +45,35 @@ function getDockerHubUser(user) {
   return user === '_' ? 'library' : user
 }
 
-async function getMultiPageData({ user, repo, fetch }) {
-  const data = await fetch({ user, repo })
+async function getMultiPageData({
+  user,
+  repo,
+  fetch,
+  isAuthenticated = false,
+  shouldFetchRemainingPages = () => true,
+}) {
+  const firstPageData = await fetch({ user, repo })
 
-  if (data.count === 0) {
+  if (firstPageData.count === 0) {
     throw new NotFound({ prettyMessage: 'repository not found' })
   }
 
-  const numberOfPages = Math.ceil(data.count / 100) // Maximum of 100 results can be returned per page
-
-  if (numberOfPages === 1) {
-    return data.results
+  if (!shouldFetchRemainingPages(firstPageData.results)) {
+    return firstPageData.results
   }
 
+  // Maximum of 100 results can be returned per page. Docker Hub rejects
+  // anonymous requests for page 11 (offset 1,000) with the following error:
+  // "pagination offset too large for anonymous requests; sign in to page further".
+  const maxPages = isAuthenticated ? Infinity : maxDockerHubAnonymousPages
+  const numberOfPages = Math.min(Math.ceil(firstPageData.count / 100), maxPages)
+
   const pageData = await Promise.all(
-    [...Array(numberOfPages - 1).keys()].map((_, i) =>
-      fetch({ user, repo, page: ++i + 1 })
-    )
+    Array.from({ length: numberOfPages - 1 }, (_, pageIndex) =>
+      fetch({ user, repo, page: pageIndex + 2 }),
+    ),
   )
-  return [...data.results].concat(...pageData.map(p => p.results))
+  return [firstPageData, ...pageData].flatMap(({ results }) => results)
 }
 
 function getDigestSemVerMatches({ data, digest }) {
@@ -55,6 +90,8 @@ function getDigestSemVerMatches({ data, digest }) {
 }
 
 export {
+  archEnum,
+  archSchema,
   dockerBlue,
   buildDockerUrl,
   getDockerHubUser,

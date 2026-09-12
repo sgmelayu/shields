@@ -18,11 +18,14 @@ t.create('package pre-release version')
     message: isVPlusTripleDottedVersion,
   })
 
-t.create('package not found').get('/v/does-not-exist.json').expectBadge({
+t.create('package not found').get('/v/doesnotexist.json').expectBadge({
   label: 'pub',
   message: 'not found',
 })
 
 t.create('package version (legacy redirect: vpre)')
-  .get('/vpre/box2d.svg')
-  .expectRedirect('/pub/v/box2d.svg?include_prereleases')
+  .get('/vpre/box2d.json')
+  .expectBadge({
+    label: 'pub',
+    message: 'https://github.com/badges/shields/pull/11583',
+  })

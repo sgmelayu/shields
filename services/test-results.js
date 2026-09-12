@@ -1,4 +1,11 @@
+/**
+ * Helpers for formatting test-result badge messages and colors.
+ *
+ * @module
+ */
+
 import Joi from 'joi'
+import { queryParams } from './index.js'
 
 const testResultQueryParamSchema = Joi.object({
   compact_message: Joi.equal(''),
@@ -7,6 +14,31 @@ const testResultQueryParamSchema = Joi.object({
   skipped_label: Joi.string(),
 }).required()
 
+const testResultOpenApiQueryParams = queryParams(
+  {
+    name: 'compact_message',
+    example: null,
+    schema: { type: 'boolean' },
+  },
+  { name: 'passed_label', example: 'good' },
+  { name: 'failed_label', example: 'bad' },
+  { name: 'skipped_label', example: 'n/a' },
+)
+
+/**
+ * Format test counts into a badge message string.
+ *
+ * @param {object} attrs Refer to individual attrs
+ * @param {number} attrs.passed Number of passing tests.
+ * @param {number} attrs.failed Number of failing tests.
+ * @param {number} attrs.skipped Number of skipped tests.
+ * @param {number} attrs.total Total number of tests.
+ * @param {string} [attrs.passedLabel] Label for passing tests in verbose mode.
+ * @param {string} [attrs.failedLabel] Label for failing tests in verbose mode.
+ * @param {string} [attrs.skippedLabel] Label for skipped tests in verbose mode.
+ * @param {boolean} [attrs.isCompact] When true, use compact symbols separated by ` | `.
+ * @returns {string} Formatted message, or `no tests` when total is zero.
+ */
 function renderTestResultMessage({
   passed,
   failed,
@@ -45,6 +77,23 @@ function renderTestResultMessage({
   }
 }
 
+/**
+ * Render badge data for a test result summary.
+ *
+ * Chooses badge color from pass/fail/skip counts and delegates message formatting
+ * to {@link renderTestResultMessage}.
+ *
+ * @param {object} attrs Refer to individual attrs
+ * @param {number} attrs.passed Number of passing tests.
+ * @param {number} attrs.failed Number of failing tests.
+ * @param {number} attrs.skipped Number of skipped tests.
+ * @param {number} attrs.total Total number of tests.
+ * @param {string} [attrs.passedLabel] Label for passing tests in verbose mode.
+ * @param {string} [attrs.failedLabel] Label for failing tests in verbose mode.
+ * @param {string} [attrs.skippedLabel] Label for skipped tests in verbose mode.
+ * @param {boolean} [attrs.isCompact] When true, use compact symbols in the message.
+ * @returns {{message: string, color: string}} Badge message and shields color name.
+ */
 function renderTestResultBadge({
   passed,
   failed,
@@ -83,29 +132,22 @@ function renderTestResultBadge({
 }
 
 const documentation = `
-<p>
-  You may change the "passed", "failed" and "skipped" text on this badge by supplying query parameters <code>&passed_label=</code>, <code>&failed_label=</code> and <code>&skipped_label=</code> respectively.
-</p>
+You may change the "passed", "failed" and "skipped" text on this badge by supplying query parameters <code>&passed_label=</code>, <code>&failed_label=</code> and <code>&skipped_label=</code> respectively.
 
-<p>
-  For example, if you want to use a different terminology:
-  <br>
-  <code>?passed_label=good&failed_label=bad&skipped_label=n%2Fa</code>
-</p>
+For example, if you want to use a different terminology:
 
-<p>
-  Or symbols:
-  <br>
-  <code>?compact_message&passed_label=💃&failed_label=🤦‍♀️&skipped_label=🤷</code>
-</p>
+\`?passed_label=good&failed_label=bad&skipped_label=n%2Fa\`
 
-<p>
-  There is also a <code>&compact_message</code> query parameter, which will default to displaying ✔, ✘ and ➟, separated by a horizontal bar |.
-</p>
+Or symbols:
+
+\`?compact_message&passed_label=💃&failed_label=🤦‍♀️&skipped_label=🤷\`
+
+There is also a <code>&compact_message</code> query parameter, which will default to displaying ✔, ✘ and ➟, separated by a horizontal bar |.
 `
 
 export {
   testResultQueryParamSchema,
+  testResultOpenApiQueryParams,
   renderTestResultMessage,
   renderTestResultBadge,
   documentation,

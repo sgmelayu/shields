@@ -2,10 +2,12 @@ import { isSemver } from '../test-validators.js'
 import { createServiceTester } from '../tester.js'
 export const t = await createServiceTester()
 
-t.create('docker version (valid, library)').get('/_/alpine.json').expectBadge({
-  label: 'version',
-  message: isSemver,
-})
+t.create('docker version (valid, library)')
+  .get('/docker/example-voting-app-vote.json')
+  .expectBadge({
+    label: 'version',
+    message: 'latest',
+  })
 
 t.create('docker version (valid, library with tag)')
   .get('/_/alpine/latest.json')
@@ -15,7 +17,7 @@ t.create('docker version (valid, library with tag)')
   })
 
 t.create('docker version (valid, user)')
-  .get('/datadog/agent.json')
+  .get('/datadog/dogstatsd.json')
   .expectBadge({
     label: 'version',
     message: isSemver,
@@ -39,5 +41,5 @@ t.create('docker version (invalid, unknown repository)')
   .get('/_/not-a-real-repo.json')
   .expectBadge({
     label: 'version',
-    message: 'repository not found',
+    message: 'repository or tag not found',
   })

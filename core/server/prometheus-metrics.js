@@ -31,18 +31,61 @@ export default class PrometheusMetrics {
         buckets: prometheus.exponentialBuckets(64 * 1024, 2, 8),
         registers: [this.register],
       }),
+      githubTokenInvalidations: new prometheus.Counter({
+        name: 'github_token_invalidations_total',
+        help: 'Total GitHub tokens invalidated and removed from the pool',
+        labelNames: ['reason'],
+        registers: [this.register],
+      }),
+    }
+    this.gauges = {
+      githubTokenPoolStandard: new prometheus.Gauge({
+        name: 'github_token_pool_standard_requests_remaining',
+        help: 'Total GitHub API requests remaining in standard token pool',
+        registers: [this.register],
+      }),
+      githubTokenPoolSearch: new prometheus.Gauge({
+        name: 'github_token_pool_search_requests_remaining',
+        help: 'Total GitHub API requests remaining in search token pool',
+        registers: [this.register],
+      }),
+      githubTokenPoolGraphql: new prometheus.Gauge({
+        name: 'github_token_pool_graphql_requests_remaining',
+        help: 'Total GitHub API requests remaining in GraphQL token pool',
+        registers: [this.register],
+      }),
+      githubTokenPoolStandardCount: new prometheus.Gauge({
+        name: 'github_token_pool_standard_count',
+        help: 'Number of tokens in standard token pool',
+        registers: [this.register],
+      }),
+      githubTokenPoolSearchCount: new prometheus.Gauge({
+        name: 'github_token_pool_search_count',
+        help: 'Number of tokens in search token pool',
+        registers: [this.register],
+      }),
+      githubTokenPoolGraphqlCount: new prometheus.Gauge({
+        name: 'github_token_pool_graphql_count',
+        help: 'Number of tokens in GraphQL token pool',
+        registers: [this.register],
+      }),
     }
     this.interval = prometheus.collectDefaultMetrics({
       register: this.register,
     })
   }
 
-  async registerMetricsEndpoint(server) {
+  async registerMetricsEndpoint(server, enabled = true) {
     const { register } = this
 
     server.route(/^\/metrics$/, async (data, match, end, ask) => {
-      ask.res.setHeader('Content-Type', register.contentType)
-      ask.res.end(await register.metrics())
+      if (enabled) {
+        ask.res.setHeader('Content-Type', register.contentType)
+        ask.res.end(await register.metrics())
+      } else {
+        ask.res.statusCode = 404
+        ask.res.end()
+      }
     })
   }
 
@@ -79,7 +122,37 @@ export default class PrometheusMetrics {
     return this.counters.serviceResponseSize.labels(
       category,
       serviceFamily,
-      service
+      service,
+    )
+  }
+
+  /**
+   * Record that a GitHub token was invalidated and removed from the pool.
+   *
+   * @param {object} attrs Attributes
+   * @param {string} attrs.reason Why the token was invalidated,
+   *   e.g: 'http_401' or 'account_suspended'
+   */
+  noteGithubTokenInvalidation({ reason }) {
+    this.counters.githubTokenInvalidations.labels(reason).inc()
+  }
+
+  noteGithubTokenPoolMetrics(tokenDebugInfo) {
+    const { standardTokens, searchTokens, graphqlTokens } = tokenDebugInfo
+
+    this.gauges.githubTokenPoolStandard.set(standardTokens.totalUsesRemaining)
+    this.gauges.githubTokenPoolStandardCount.set(
+      standardTokens.allTokenDebugInfo.length,
+    )
+
+    this.gauges.githubTokenPoolSearch.set(searchTokens.totalUsesRemaining)
+    this.gauges.githubTokenPoolSearchCount.set(
+      searchTokens.allTokenDebugInfo.length,
+    )
+
+    this.gauges.githubTokenPoolGraphql.set(graphqlTokens.totalUsesRemaining)
+    this.gauges.githubTokenPoolGraphqlCount.set(
+      graphqlTokens.allTokenDebugInfo.length,
     )
   }
 }

@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { pathParam, pathParams, queryParam } from '../index.js'
 import { renderVersionBadge } from '../version.js'
 import { transformAndValidate, renderDynamicBadge } from '../dynamic-common.js'
 import {
@@ -10,10 +11,12 @@ import { ConditionalGithubAuthV3Service } from './github-auth-service.js'
 import { fetchJsonFromRepo } from './github-common-fetch.js'
 import { documentation } from './github-helpers.js'
 
-const keywords = ['npm', 'node']
-
 const versionSchema = Joi.object({
   version: semver,
+}).required()
+
+const subfolderQueryParamSchema = Joi.object({
+  filename: Joi.string(),
 }).required()
 
 class GithubPackageJsonVersion extends ConditionalGithubAuthV3Service {
@@ -21,30 +24,34 @@ class GithubPackageJsonVersion extends ConditionalGithubAuthV3Service {
   static route = {
     base: 'github/package-json/v',
     pattern: ':user/:repo/:branch*',
+    queryParamSchema: subfolderQueryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'GitHub package.json version',
-      pattern: ':user/:repo',
-      namedParams: { user: 'IcedFrisby', repo: 'IcedFrisby' },
-      staticPreview: this.render({ version: '2.0.0-alpha.2' }),
-      documentation,
-      keywords,
-    },
-    {
-      title: 'GitHub package.json version (branch)',
-      pattern: ':user/:repo/:branch',
-      namedParams: {
-        user: 'IcedFrisby',
-        repo: 'IcedFrisby',
-        branch: 'master',
+  static openApi = {
+    '/github/package-json/v/{user}/{repo}': {
+      get: {
+        summary: 'GitHub package.json version',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'user', example: 'badges' }),
+          pathParam({ name: 'repo', example: 'shields' }),
+          queryParam({ name: 'filename', example: 'badge-maker/package.json' }),
+        ],
       },
-      staticPreview: this.render({ version: '2.0.0-alpha.2' }),
-      documentation,
-      keywords,
     },
-  ]
+    '/github/package-json/v/{user}/{repo}/{branch}': {
+      get: {
+        summary: 'GitHub package.json version (branch)',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'user', example: 'badges' }),
+          pathParam({ name: 'repo', example: 'shields' }),
+          pathParam({ name: 'branch', example: 'master' }),
+          queryParam({ name: 'filename', example: 'badge-maker/package.json' }),
+        ],
+      },
+    },
+  }
 
   static render({ version, branch }) {
     return renderVersionBadge({
@@ -54,21 +61,20 @@ class GithubPackageJsonVersion extends ConditionalGithubAuthV3Service {
     })
   }
 
-  async handle({ user, repo, branch }) {
+  async handle({ user, repo, branch }, { filename = 'package.json' }) {
     const { version } = await fetchJsonFromRepo(this, {
       schema: versionSchema,
       user,
       repo,
       branch,
-      filename: 'package.json',
+      filename,
     })
     return this.constructor.render({ version, branch })
   }
 }
 
-const dependencyQueryParamSchema = Joi.object({
-  filename: Joi.string(),
-}).required()
+const packageNameDescription =
+  'This may be the name of an unscoped package like `package-name` or a [scoped package](https://docs.npmjs.com/about-scopes) like `@author/package-name`'
 
 class GithubPackageJsonDependencyVersion extends ConditionalGithubAuthV3Service {
   static category = 'platform-support'
@@ -76,61 +82,103 @@ class GithubPackageJsonDependencyVersion extends ConditionalGithubAuthV3Service 
     base: 'github/package-json/dependency-version',
     pattern:
       ':user/:repo/:kind(dev|peer|optional)?/:scope(@[^/]+)?/:packageName/:branch*',
-    queryParamSchema: dependencyQueryParamSchema,
+    queryParamSchema: subfolderQueryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'GitHub package.json dependency version (prod)',
-      pattern: ':user/:repo/:packageName',
-      namedParams: {
-        user: 'developit',
-        repo: 'microbundle',
-        packageName: 'rollup',
+  static openApi = {
+    '/github/package-json/dependency-version/{user}/{repo}/{packageName}': {
+      get: {
+        summary: 'GitHub package.json prod dependency version',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'user', example: 'badges' }),
+          pathParam({ name: 'repo', example: 'shields' }),
+          pathParam({
+            name: 'packageName',
+            example: 'dayjs',
+            description: packageNameDescription,
+          }),
+          queryParam({
+            name: 'filename',
+            example: 'badge-maker/package.json',
+          }),
+        ],
       },
-      staticPreview: this.render({
-        dependency: 'rollup',
-        range: '^0.67.3',
-      }),
-      documentation,
-      keywords,
     },
-    {
-      title: 'GitHub package.json dependency version (dev dep on branch)',
-      pattern: ':user/:repo/dev/:scope?/:packageName/:branch*',
-      namedParams: {
-        user: 'zeit',
-        repo: 'next.js',
-        branch: 'canary',
-        scope: '@babel',
-        packageName: 'preset-react',
+    '/github/package-json/dependency-version/{user}/{repo}/{packageName}/{branch}':
+      {
+        get: {
+          summary: 'GitHub package.json prod dependency version (branch)',
+          description: documentation,
+          parameters: [
+            pathParam({ name: 'user', example: 'badges' }),
+            pathParam({ name: 'repo', example: 'shields' }),
+            pathParam({
+              name: 'packageName',
+              example: 'dayjs',
+              description: packageNameDescription,
+            }),
+            pathParam({ name: 'branch', example: 'master' }),
+            queryParam({
+              name: 'filename',
+              example: 'badge-maker/package.json',
+            }),
+          ],
+        },
       },
-      staticPreview: this.render({
-        dependency: '@babel/preset-react',
-        range: '7.0.0',
-      }),
-      documentation,
-      keywords,
-    },
-    {
-      title: 'GitHub package.json dependency version (subfolder of monorepo)',
-      pattern: ':user/:repo/:packageName',
-      namedParams: {
-        user: 'metabolize',
-        repo: 'anafanafo',
-        packageName: 'puppeteer',
+    '/github/package-json/dependency-version/{user}/{repo}/{kind}/{packageName}':
+      {
+        get: {
+          summary: 'GitHub package.json dev/peer/optional dependency version',
+          description: documentation,
+          parameters: [
+            pathParam({ name: 'user', example: 'gatsbyjs' }),
+            pathParam({ name: 'repo', example: 'gatsby' }),
+            pathParam({
+              name: 'kind',
+              example: 'dev',
+              schema: { type: 'string', enum: this.getEnum('kind') },
+            }),
+            pathParam({
+              name: 'packageName',
+              example: 'cross-env',
+              description: packageNameDescription,
+            }),
+            queryParam({
+              name: 'filename',
+              example: 'packages/gatsby-cli/package.json',
+            }),
+          ],
+        },
       },
-      queryParams: {
-        filename: 'packages/char-width-table-builder/package.json',
+    '/github/package-json/dependency-version/{user}/{repo}/{kind}/{packageName}/{branch}':
+      {
+        get: {
+          summary:
+            'GitHub package.json dev/peer/optional dependency version (branch)',
+          description: documentation,
+          parameters: [
+            pathParam({ name: 'user', example: 'gatsbyjs' }),
+            pathParam({ name: 'repo', example: 'gatsby' }),
+            pathParam({
+              name: 'kind',
+              example: 'dev',
+              schema: { type: 'string', enum: this.getEnum('kind') },
+            }),
+            pathParam({
+              name: 'packageName',
+              example: 'cross-env',
+              description: packageNameDescription,
+            }),
+            pathParam({ name: 'branch', example: 'master' }),
+            queryParam({
+              name: 'filename',
+              example: 'packages/gatsby-cli/package.json',
+            }),
+          ],
+        },
       },
-      staticPreview: this.render({
-        dependency: 'puppeteer',
-        range: '^1.14.0',
-      }),
-      documentation,
-      keywords,
-    },
-  ]
+  }
 
   static defaultBadgeData = { label: 'dependency' }
 
@@ -144,7 +192,7 @@ class GithubPackageJsonDependencyVersion extends ConditionalGithubAuthV3Service 
 
   async handle(
     { user, repo, kind, branch = 'HEAD', scope, packageName },
-    { filename = 'package.json' }
+    { filename = 'package.json' },
   ) {
     const {
       dependencies,
@@ -160,7 +208,7 @@ class GithubPackageJsonDependencyVersion extends ConditionalGithubAuthV3Service 
     })
 
     const wantedDependency = scope ? `${scope}/${packageName}` : packageName
-    const { range } = getDependencyVersion({
+    const range = getDependencyVersion({
       kind,
       wantedDependency,
       dependencies,
@@ -185,40 +233,39 @@ class DynamicGithubPackageJson extends ConditionalGithubAuthV3Service {
     pattern: ':key/:user/:repo/:branch*',
   }
 
-  static examples = [
-    {
-      title: 'GitHub package.json dynamic',
-      pattern: ':key/:user/:repo',
-      namedParams: {
-        key: 'keywords',
-        user: 'developit',
-        repo: 'microbundle',
+  static openApi = {
+    '/github/package-json/{key}/{user}/{repo}': {
+      get: {
+        summary: 'GitHub package.json dynamic',
+        description: documentation,
+        parameters: pathParams(
+          {
+            name: 'key',
+            example: 'keywords',
+            description: 'any key in package.json',
+          },
+          { name: 'user', example: 'developit' },
+          { name: 'repo', example: 'microbundle' },
+        ),
       },
-      staticPreview: this.render({
-        key: 'keywords',
-        value: ['bundle', 'rollup', 'micro library'],
-      }),
-      documentation,
-      keywords,
     },
-    {
-      title: 'GitHub package.json dynamic',
-      pattern: ':key/:user/:repo/:branch',
-      namedParams: {
-        key: 'keywords',
-        user: 'developit',
-        repo: 'microbundle',
-        branch: 'master',
+    '/github/package-json/{key}/{user}/{repo}/{branch}': {
+      get: {
+        summary: 'GitHub package.json dynamic (branch)',
+        description: documentation,
+        parameters: pathParams(
+          {
+            name: 'key',
+            example: 'keywords',
+            description: 'any key in package.json',
+          },
+          { name: 'user', example: 'developit' },
+          { name: 'repo', example: 'microbundle' },
+          { name: 'branch', example: 'master' },
+        ),
       },
-      staticPreview: this.render({
-        key: 'keywords',
-        value: ['bundle', 'rollup', 'micro library'],
-        branch: 'master',
-      }),
-      documentation,
-      keywords,
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'package.json' }
 
@@ -242,7 +289,11 @@ class DynamicGithubPackageJson extends ConditionalGithubAuthV3Service {
       branch,
       filename: 'package.json',
     })
-    const value = transformAndValidate({ data, key })
+    let value = transformAndValidate({ data, key })
+    // Strip build metadata suffix from packageManager field (e.g. yarn@3.2.3+sha224.abc -> yarn@3.2.3)
+    if (key === 'packageManager' && typeof value === 'string') {
+      value = value.replace(/\+.*$/, '')
+    }
     return this.constructor.render({ key, value, branch })
   }
 }

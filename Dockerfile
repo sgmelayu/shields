@@ -1,4 +1,6 @@
-FROM node:14-alpine
+FROM node:24-alpine AS builder
+
+RUN npm install -g "npm@^11"
 
 RUN mkdir -p /usr/src/app
 RUN mkdir /usr/src/app/private
@@ -12,13 +14,27 @@ COPY badge-maker /usr/src/app/badge-maker/
 RUN NODE_ENV=development CYPRESS_INSTALL_BINARY=0 npm ci
 
 COPY . /usr/src/app
-RUN npm run build
-RUN npm prune --production
-RUN npm cache clean --force
+
+RUN npm run build \
+    && npm prune --omit=dev --force \
+    && rm -rf node_modules/.cache \
+    && rm -rf frontend package-lock.json
+
+
+# Use multi-stage build to reduce size
+FROM node:24-alpine
+
+ARG version=dev
+ENV DOCKER_SHIELDS_VERSION=$version
+LABEL version=$version
+LABEL fly.version=$version
 
 # Run the server using production configs.
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
-CMD node server
+WORKDIR /usr/src/app
+COPY --from=builder --chown=0:0 /usr/src/app /usr/src/app
 
-EXPOSE 80
+CMD ["node", "server"]
+
+EXPOSE 80 443

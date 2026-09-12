@@ -1,37 +1,61 @@
 import Joi from 'joi'
 import { renderBuildStatusBadge } from '../build-status.js'
-import { BaseSvgScrapingService, NotFound } from '../index.js'
-import { keywords, fetch } from './azure-devops-helpers.js'
+import { NotFound, queryParam, pathParam } from '../index.js'
+import AzureDevOpsBase from './azure-devops-base.js'
 
 const queryParamSchema = Joi.object({
   stage: Joi.string(),
   job: Joi.string(),
 })
 
-const documentation = `
-<p>
-  A badge requires three pieces of information: <code>ORGANIZATION</code>,
-  <code>PROJECT_ID</code> and <code>DEFINITION_ID</code>.
-</p>
-<p>
-  To start, edit your build definition and look at the url:
-</p>
+const buildSchema = Joi.object({
+  count: Joi.number().required(),
+  value: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.number().required(),
+        status: Joi.string().required(),
+        result: Joi.string().allow(null),
+      }),
+    )
+    .required(),
+}).required()
+
+const timelineSchema = Joi.object({
+  records: Joi.array()
+    .items(
+      Joi.object({
+        type: Joi.string().required(),
+        name: Joi.string().required(),
+        result: Joi.string().allow(null),
+      }),
+    )
+    .required(),
+}).required()
+
+const description = `
+[Azure Devops](https://dev.azure.com/) (formerly VSO, VSTS) is Microsoft Azure's CI/CD platform.
+
+A badge requires three pieces of information:
+\`ORGANIZATION\`, \`PROJECT_ID\` and \`DEFINITION_ID\`.
+
+To start, edit your build definition and look at the url:
+
 <img
   src="https://user-images.githubusercontent.com/3749820/47259976-e2d9ec80-d4b2-11e8-92cc-7c81089a7a2c.png"
   alt="ORGANIZATION is after the dev.azure.com part, PROJECT_NAME is right after that, DEFINITION_ID is at the end after the id= part." />
-<p>
-  Then use the Azure DevOps REST API to translate the
-  <code>PROJECT_NAME</code> to a <code>PROJECT_ID</code>.
-</p>
-<p>
-  Navigate to <code>https://dev.azure.com/ORGANIZATION/_apis/projects/PROJECT_NAME</code>
-</p>
+
+Then use the Azure DevOps REST API to translate the
+\`PROJECT_NAME\` to a \`PROJECT_ID\`.
+
+Navigate to \`https://dev.azure.com/ORGANIZATION/_apis/projects/PROJECT_NAME\`
+
 <img
   src="https://user-images.githubusercontent.com/3749820/47266325-1d846900-d535-11e8-9211-2ee72fb91877.png"
   alt="PROJECT_ID is in the id property of the API response." />
 `
 
-export default class AzureDevOpsBuild extends BaseSvgScrapingService {
+export default class AzureDevOpsBuild extends AzureDevOpsBase {
   static category = 'build'
 
   static route = {
@@ -40,85 +64,163 @@ export default class AzureDevOpsBuild extends BaseSvgScrapingService {
     queryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'Azure DevOps builds',
-      pattern: ':organization/:projectId/:definitionId',
-      namedParams: {
-        organization: 'totodem',
-        projectId: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
-        definitionId: '2',
+  static openApi = {
+    '/azure-devops/build/{organization}/{projectId}/{definitionId}': {
+      get: {
+        summary: 'Azure DevOps builds',
+        description,
+        parameters: [
+          pathParam({
+            name: 'organization',
+            example: 'totodem',
+          }),
+          pathParam({
+            name: 'projectId',
+            example: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
+          }),
+          pathParam({
+            name: 'definitionId',
+            example: '2',
+          }),
+          queryParam({
+            name: 'stage',
+            example: 'Successful Stage',
+          }),
+          queryParam({
+            name: 'job',
+            example: 'Successful Job',
+          }),
+        ],
       },
-      staticPreview: renderBuildStatusBadge({ status: 'succeeded' }),
-      keywords,
-      documentation,
     },
-    {
-      title: 'Azure DevOps builds (branch)',
-      pattern: ':organization/:projectId/:definitionId/:branch',
-      namedParams: {
-        organization: 'totodem',
-        projectId: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
-        definitionId: '2',
-        branch: 'master',
+    '/azure-devops/build/{organization}/{projectId}/{definitionId}/{branch}': {
+      get: {
+        summary: 'Azure DevOps builds (branch)',
+        description,
+        parameters: [
+          pathParam({
+            name: 'organization',
+            example: 'totodem',
+          }),
+          pathParam({
+            name: 'projectId',
+            example: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
+          }),
+          pathParam({
+            name: 'definitionId',
+            example: '2',
+          }),
+          pathParam({
+            name: 'branch',
+            example: 'master',
+          }),
+          queryParam({
+            name: 'stage',
+            example: 'Successful Stage',
+          }),
+          queryParam({
+            name: 'job',
+            example: 'Successful Job',
+          }),
+        ],
       },
-      staticPreview: renderBuildStatusBadge({ status: 'succeeded' }),
-      keywords,
-      documentation,
     },
-    {
-      title: 'Azure DevOps builds (stage)',
-      namedParams: {
-        organization: 'totodem',
-        projectId: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
-        definitionId: '5',
-      },
-      queryParams: {
-        stage: 'Successful Stage',
-      },
-      staticPreview: renderBuildStatusBadge({ status: 'succeeded' }),
-      keywords,
-      documentation,
-    },
-    {
-      title: 'Azure DevOps builds (job)',
-      namedParams: {
-        organization: 'totodem',
-        projectId: '8cf3ec0e-d0c2-4fcd-8206-ad204f254a96',
-        definitionId: '5',
-      },
-      queryParams: {
-        stage: 'Successful Stage',
-        job: 'Successful Job',
-      },
-      staticPreview: renderBuildStatusBadge({ status: 'succeeded' }),
-      keywords,
-      documentation,
-    },
-  ]
+  }
+
+  static defaultBadgeData = { label: 'build' }
+
+  // Map Azure DevOps `result` values (both build-level and timeline
+  // stage/job-level) onto the status vocabulary understood by
+  // renderBuildStatusBadge (services/build-status.js).
+  static resultMap = {
+    // build-level results (builds list)
+    canceled: 'canceled',
+    failed: 'failed',
+    none: 'no builds',
+    partiallySucceeded: 'partially succeeded',
+    succeeded: 'succeeded',
+    // timeline record-level results (stage / job)
+    abandoned: 'canceled',
+    skipped: 'skipped',
+    succeededWithIssues: 'partially succeeded',
+  }
+
+  // Look up the result of a single stage or job within a build via the
+  // Timeline API. A job takes precedence over a stage when both are given.
+  // Note: the Timeline endpoint does not accept the api-version used by the
+  // other Azure DevOps build endpoints.
+  async getStageOrJobResult(
+    organization,
+    projectId,
+    buildId,
+    stage,
+    job,
+    httpErrors,
+  ) {
+    const url = `https://dev.azure.com/${organization}/${projectId}/_apis/build/builds/${buildId}/timeline`
+    const { records } = await this.fetch({
+      url,
+      options: {},
+      schema: timelineSchema,
+      httpErrors,
+    })
+    const recordType = job ? 'Job' : 'Stage'
+    const recordName = job || stage
+    const record = records.find(
+      r => r.type === recordType && r.name === recordName,
+    )
+    if (!record) {
+      throw new NotFound({
+        prettyMessage: `${recordType.toLowerCase()} not found`,
+      })
+    }
+    return record.result
+  }
 
   async handle(
     { organization, projectId, definitionId, branch },
-    { stage, job }
+    { stage, job },
   ) {
-    // Microsoft documentation: https://docs.microsoft.com/en-us/rest/api/vsts/build/status/get
-    const { status } = await fetch(this, {
-      url: `https://dev.azure.com/${organization}/${projectId}/_apis/build/status/${definitionId}`,
-      qs: {
-        branchName: branch,
-        stageName: stage,
-        jobName: job,
+    const httpErrors = {
+      404: 'build pipeline not found',
+    }
+    // Microsoft documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/build/builds/list
+    const url = `https://dev.azure.com/${organization}/${projectId}/_apis/build/builds`
+    const options = {
+      searchParams: {
+        definitions: definitionId,
+        $top: 1,
+        statusFilter: 'completed',
+        'api-version': '5.0-preview.4',
       },
-      errorMessages: {
-        404: 'user or project not found',
-      },
+    }
+    if (branch) {
+      options.searchParams.branchName = `refs/heads/${branch}`
+    }
+
+    const { count, value } = await this.fetch({
+      url,
+      options,
+      schema: buildSchema,
+      httpErrors,
     })
-    if (status === 'set up now') {
-      throw new NotFound({ prettyMessage: 'definition not found' })
+
+    if (count !== 1) {
+      throw new NotFound({ prettyMessage: 'build pipeline not found' })
     }
-    if (status === 'unknown') {
-      throw new NotFound({ prettyMessage: 'project not found' })
-    }
+
+    const result =
+      stage || job
+        ? await this.getStageOrJobResult(
+            organization,
+            projectId,
+            value[0].id,
+            stage,
+            job,
+            httpErrors,
+          )
+        : value[0].result
+    const status = this.constructor.resultMap[result] || result
     return renderBuildStatusBadge({ status })
   }
 }

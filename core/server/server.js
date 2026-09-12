@@ -6,18 +6,22 @@ import path from 'path'
 import url, { fileURLToPath } from 'url'
 import { bootstrap } from 'global-agent'
 import cloudflareMiddleware from 'cloudflare-middleware'
-import bytes from 'bytes'
 import Camp from '@shields_io/camp'
 import originalJoi from 'joi'
 import makeBadge from '../../badge-maker/lib/make-badge.js'
 import GithubConstellation from '../../services/github/github-constellation.js'
-import { setRoutes } from '../../services/suggest.js'
+import LibrariesIoConstellation from '../../services/librariesio/librariesio-constellation.js'
 import { loadServiceClasses } from '../base-service/loader.js'
 import { makeSend } from '../base-service/legacy-result-sender.js'
 import { handleRequest } from '../base-service/legacy-request-handler.js'
-import { clearRegularUpdateCache } from '../legacy/regular-update.js'
+import { clearResourceCache } from '../base-service/resource-cache.js'
 import { rasterRedirectUrl } from '../badge-urls/make-badge-url.js'
-import { nonNegativeInteger } from '../../services/validators.js'
+import {
+  fileSizeBytes,
+  nonNegativeInteger,
+  optionalUrl,
+  url as requiredUrl,
+} from '../../services/validators.js'
 import log from './log.js'
 import PrometheusMetrics from './prometheus-metrics.js'
 import InfluxMetrics from './influx-metrics.js'
@@ -55,22 +59,21 @@ const Joi = originalJoi
     },
   }))
 
-const optionalUrl = Joi.string().uri({ scheme: ['http', 'https'] })
-const requiredUrl = optionalUrl.required()
 const origins = Joi.arrayFromString().items(Joi.string().origin())
 const defaultService = Joi.object({ authorizedOrigins: origins }).default({
   authorizedOrigins: [],
 })
+const openEndedServiceFamilies = new Set(['dynamic', 'endpoint'])
 
 const publicConfigSchema = Joi.object({
   bind: {
     port: Joi.alternatives().try(
       Joi.number().port(),
-      Joi.string().pattern(/^\\\\\.\\pipe\\.+$/)
+      Joi.string().pattern(/^\\\\\.\\pipe\\.+$/),
     ),
     address: Joi.alternatives().try(
       Joi.string().ip().required(),
-      Joi.string().hostname().required()
+      Joi.string().hostname().required(),
     ),
   },
   metrics: {
@@ -112,10 +115,8 @@ const publicConfigSchema = Joi.object({
   },
   redirectUrl: optionalUrl,
   rasterUrl: optionalUrl,
-  cors: {
-    allowedOrigin: Joi.array().items(optionalUrl).required(),
-  },
   services: Joi.object({
+    bitbucket: defaultService,
     bitbucketServer: defaultService,
     drone: defaultService,
     github: {
@@ -124,7 +125,10 @@ const publicConfigSchema = Joi.object({
         enabled: Joi.boolean().required(),
         intervalSeconds: Joi.number().integer().min(1).required(),
       },
+      restApiVersion: Joi.date().raw().required(),
     },
+    gitea: defaultService,
+    gitlab: defaultService,
     jira: defaultService,
     jenkins: Joi.object({
       authorizedOrigins: origins,
@@ -133,6 +137,10 @@ const publicConfigSchema = Joi.object({
     }).default({ authorizedOrigins: [] }),
     nexus: defaultService,
     npm: defaultService,
+    obs: defaultService,
+    pypi: {
+      baseUri: requiredUrl,
+    },
     sonar: defaultService,
     teamcity: defaultService,
     weblate: defaultService,
@@ -140,7 +148,8 @@ const publicConfigSchema = Joi.object({
   }).required(),
   cacheHeaders: { defaultCacheLengthSeconds: nonNegativeInteger },
   handleInternalErrors: Joi.boolean().required(),
-  fetchLimit: Joi.string().regex(/^[0-9]+(b|kb|mb|gb|tb)$/i),
+  fetchLimitBytes: fileSizeBytes,
+  userAgentBase: Joi.string().required(),
   requestTimeoutSeconds: nonNegativeInteger,
   requestTimeoutMaxAgeSeconds: nonNegativeInteger,
   documentRoot: Joi.string().default(
@@ -148,43 +157,60 @@ const publicConfigSchema = Joi.object({
       path.dirname(fileURLToPath(import.meta.url)),
       '..',
       '..',
-      'public'
-    )
+      'public',
+    ),
   ),
+  allowUnsecuredEndpointRequests: Joi.boolean().required(),
+  dynamicAndEndpointBadgesEnabled: Joi.boolean().required(),
   requireCloudflare: Joi.boolean().required(),
 }).required()
 
 const privateConfigSchema = Joi.object({
   azure_devops_token: Joi.string(),
+  curseforge_api_key: Joi.string(),
   discord_bot_token: Joi.string(),
+  dockerhub_username: Joi.string(),
+  dockerhub_pat: Joi.string(),
   drone_token: Joi.string(),
   gh_client_id: Joi.string(),
   gh_client_secret: Joi.string(),
   gh_token: Joi.string(),
+  gitea_token: Joi.string(),
+  gitlab_token: Joi.string(),
   jenkins_user: Joi.string(),
   jenkins_pass: Joi.string(),
   jira_user: Joi.string(),
   jira_pass: Joi.string(),
+  bitbucket_username: Joi.string(),
+  bitbucket_password: Joi.string(),
   bitbucket_server_username: Joi.string(),
   bitbucket_server_password: Joi.string(),
+  librariesio_tokens: Joi.arrayFromString().items(Joi.string()),
   nexus_user: Joi.string(),
   nexus_pass: Joi.string(),
   npm_token: Joi.string(),
-  redis_url: Joi.string().uri({ scheme: ['redis', 'rediss'] }),
+  obs_user: Joi.string(),
+  obs_pass: Joi.string(),
+  opencollective_token: Joi.string(),
+  outagedeck_api_key: Joi.string(),
+  pepy_key: Joi.string(),
+  postgres_url: Joi.string().uri({ scheme: 'postgresql' }),
+  readthedocs_token: Joi.string(),
+  reddit_client_id: Joi.string(),
+  reddit_client_secret: Joi.string(),
   sentry_dsn: Joi.string(),
-  shields_secret: Joi.string(),
   sl_insight_userUuid: Joi.string(),
   sl_insight_apiToken: Joi.string(),
   sonarqube_token: Joi.string(),
+  stackapps_api_key: Joi.string(),
   teamcity_user: Joi.string(),
   teamcity_pass: Joi.string(),
   twitch_client_id: Joi.string(),
   twitch_client_secret: Joi.string(),
-  wheelmap_token: Joi.string(),
   influx_username: Joi.string(),
   influx_password: Joi.string(),
   weblate_api_key: Joi.string(),
-  youtube_api_key: Joi.string(),
+  youtube_api_key: Joi.string(), // Deprecated, will be removed in an upcoming release.
 }).required()
 const privateMetricsInfluxConfigSchema = privateConfigSchema.append({
   influx_username: Joi.string().required(),
@@ -193,6 +219,14 @@ const privateMetricsInfluxConfigSchema = privateConfigSchema.append({
 
 function addHandlerAtIndex(camp, index, handlerFn) {
   camp.stack.splice(index, 0, handlerFn)
+}
+
+function isOnHeroku() {
+  return !!process.env.DYNO
+}
+
+function isOnFly() {
+  return !!process.env.FLY_APP_NAME
 }
 
 /**
@@ -215,7 +249,7 @@ class Server {
     const publicConfig = Joi.attempt(config.public, publicConfigSchema)
     const privateConfig = this.validatePrivateConfig(
       config.private,
-      privateConfigSchema
+      privateConfigSchema,
     )
     // We want to require an username and a password for the influx metrics
     // only if the influx metrics are enabled. The private config schema
@@ -224,7 +258,7 @@ class Server {
     if (publicConfig.metrics.influx && publicConfig.metrics.influx.enabled) {
       this.validatePrivateConfig(
         config.private,
-        privateMetricsInfluxConfigSchema
+        privateMetricsInfluxConfigSchema,
       )
     }
     this.config = {
@@ -234,6 +268,11 @@ class Server {
 
     this.githubConstellation = new GithubConstellation({
       service: publicConfig.services.github,
+      metricsIntervalSeconds: publicConfig.metrics.influx.intervalSeconds,
+      private: privateConfig,
+    })
+
+    this.librariesioConstellation = new LibrariesIoConstellation({
       private: privateConfig,
     })
 
@@ -245,7 +284,7 @@ class Server {
           Object.assign({}, publicConfig.metrics.influx, {
             username: privateConfig.influx_username,
             password: privateConfig.influx_password,
-          })
+          }),
         )
       }
     }
@@ -258,8 +297,8 @@ class Server {
       const badPaths = e.details.map(({ path }) => path)
       throw Error(
         `Private configuration is invalid. Check these paths: ${badPaths.join(
-          ','
-        )}`
+          ',',
+        )}`,
       )
     }
   }
@@ -291,13 +330,21 @@ class Server {
     // Set `req.ip`, which is expected by `cloudflareMiddleware()`. This is set
     // by Express but not Scoutcamp.
     addHandlerAtIndex(this.camp, 0, function (req, res, next) {
-      // On Heroku, `req.socket.remoteAddress` is the Heroku router. However,
-      // the router ensures that the last item in the `X-Forwarded-For` header
-      // is the real origin.
-      // https://stackoverflow.com/a/18517550/893113
-      req.ip = process.env.DYNO
-        ? req.headers['x-forwarded-for'].split(', ').pop()
-        : req.socket.remoteAddress
+      if (isOnHeroku()) {
+        // On Heroku, `req.socket.remoteAddress` is the Heroku router. However,
+        // the router ensures that the last item in the `X-Forwarded-For` header
+        // is the real origin.
+        // https://stackoverflow.com/a/18517550/893113
+        req.ip = req.headers['x-forwarded-for'].split(', ').pop()
+      } else if (isOnFly()) {
+        // On Fly we can use the Fly-Client-IP header
+        // https://fly.io/docs/reference/runtime-environment/#request-headers
+        req.ip = req.headers['fly-client-ip']
+          ? req.headers['fly-client-ip']
+          : req.socket.remoteAddress
+      } else {
+        req.ip = req.socket.remoteAddress
+      }
       next()
     })
     addHandlerAtIndex(this.camp, 1, cloudflareMiddleware())
@@ -312,54 +359,68 @@ class Server {
       public: { rasterUrl },
     } = config
 
+    camp.route(/^\/favicon\.ico$/, (query, match, end, request) => {
+      request.res.statusCode = 404
+      request.res.setHeader(
+        'Cache-Control',
+        'public, max-age=31536000, s-maxage=31536000, immutable',
+      )
+      makeSend('empty', request.res, end)()
+    })
+
     camp.route(/\.(gif|jpg)$/, (query, match, end, request) => {
       const [, format] = match
       makeSend(
         'svg',
         request.res,
-        end
+        end,
       )(
         makeBadge({
           label: '410',
           message: `${format} no longer available`,
           color: 'lightgray',
           format: 'svg',
-        })
+        }),
       )
     })
 
     if (!rasterUrl) {
-      camp.route(/\.png$/, (query, match, end, request) => {
-        makeSend(
-          'svg',
-          request.res,
-          end
-        )(
-          makeBadge({
-            label: '404',
-            message: 'raster badges not available',
-            color: 'lightgray',
-            format: 'svg',
-          })
-        )
-      })
+      camp.route(
+        /^\/((?!img|assets\/)).*\.png$/,
+        (query, match, end, request) => {
+          makeSend(
+            'svg',
+            request.res,
+            end,
+          )(
+            makeBadge({
+              label: '404',
+              message: 'raster badges not available',
+              color: 'lightgray',
+              format: 'svg',
+            }),
+          )
+        },
+      )
     }
 
     camp.notfound(/(\.svg|\.json|)$/, (query, match, end, request) => {
       const [, extension] = match
       const format = (extension || '.svg').replace(/^\./, '')
 
+      request.res.statusCode = 200
+
       makeSend(
         format,
         request.res,
-        end
+        end,
       )(
         makeBadge({
           label: '404',
           message: 'badge not found',
           color: 'red',
           format,
-        })
+        }),
       )
     })
   }
@@ -379,18 +440,21 @@ class Server {
 
     if (rasterUrl) {
       // Redirect to the raster server for raster versions of modern badges.
-      camp.route(/\.png$/, (queryParams, match, end, ask) => {
-        ask.res.statusCode = 301
-        ask.res.setHeader(
-          'Location',
-          rasterRedirectUrl({ rasterUrl }, ask.req.url)
-        )
+      camp.route(
+        /^\/((?!img|assets\/)).*\.png$/,
+        (queryParams, match, end, ask) => {
+          ask.res.statusCode = 301
+          ask.res.setHeader(
+            'Location',
+            rasterRedirectUrl({ rasterUrl }, ask.req.url),
+          )
 
-        const cacheDuration = (30 * 24 * 3600) | 0 // 30 days.
-        ask.res.setHeader('Cache-Control', `max-age=${cacheDuration}`)
+          const cacheDuration = (30 * 24 * 3600) | 0 // 30 days.
+          ask.res.setHeader('Cache-Control', `max-age=${cacheDuration}`)
 
-        ask.res.end()
-      })
+          ask.res.end()
+        },
+      )
     }
 
     if (redirectUrl) {
@@ -409,20 +473,32 @@ class Server {
   async registerServices() {
     const { config, camp, metricInstance } = this
     const { apiProvider: githubApiProvider } = this.githubConstellation
-
-    ;(await loadServiceClasses()).forEach(serviceClass =>
-      serviceClass.register(
-        { camp, handleRequest, githubApiProvider, metricInstance },
-        {
-          handleInternalErrors: config.public.handleInternalErrors,
-          cacheHeaders: config.public.cacheHeaders,
-          fetchLimitBytes: bytes(config.public.fetchLimit),
-          rasterUrl: config.public.rasterUrl,
-          private: config.private,
-          public: config.public,
-        }
+    const { apiProvider: librariesIoApiProvider } =
+      this.librariesioConstellation
+    ;(await loadServiceClasses())
+      .filter(
+        ({ serviceFamily }) =>
+          config.public.dynamicAndEndpointBadgesEnabled ||
+          !openEndedServiceFamilies.has(serviceFamily),
       )
-    )
+      .forEach(serviceClass =>
+        serviceClass.register(
+          {
+            camp,
+            handleRequest,
+            githubApiProvider,
+            librariesIoApiProvider,
+            metricInstance,
+          },
+          {
+            handleInternalErrors: config.public.handleInternalErrors,
+            cacheHeaders: config.public.cacheHeaders,
+            rasterUrl: config.public.rasterUrl,
+            private: config.private,
+            public: config.public,
+          },
+        ),
+      )
   }
 
   bootstrapAgent() {
@@ -454,7 +530,6 @@ class Server {
     const {
       bind: { port, address: hostname },
       ssl: { isSecure: secure, cert, key },
-      cors: { allowedOrigin },
       requireCloudflare,
     } = this.config.public
 
@@ -467,6 +542,7 @@ class Server {
       port,
       hostname,
       secure,
+      spdy: false,
       staticMaxAge: 300,
       cert,
       key,
@@ -477,18 +553,25 @@ class Server {
     }
 
     const { githubConstellation, metricInstance } = this
-    await githubConstellation.initialize(camp)
+    await githubConstellation.initialize(camp, metricInstance)
     if (metricInstance) {
-      if (this.config.public.metrics.prometheus.endpointEnabled) {
-        metricInstance.registerMetricsEndpoint(camp)
-      }
+      metricInstance.registerMetricsEndpoint(
+        camp,
+        this.config.public.metrics.prometheus.endpointEnabled,
+      )
       if (this.influxMetrics) {
         this.influxMetrics.startPushingMetrics()
       }
     }
 
-    const { apiProvider: githubApiProvider } = this.githubConstellation
-    setRoutes(allowedOrigin, githubApiProvider, camp)
+    camp.handle((req, res, next) => {
+      // https://github.com/badges/shields/issues/3273
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      // https://github.com/badges/shields/issues/10419
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+
+      next()
+    })
 
     this.registerErrorHandlers()
     this.registerRedirects()
@@ -515,7 +598,7 @@ class Server {
   static resetGlobalState() {
     // This state should be migrated to instance state. When possible, do not add new
     // global state.
-    clearRegularUpdateCache()
+    clearResourceCache()
   }
 
   reset() {

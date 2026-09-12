@@ -1,6 +1,14 @@
 {
   "name": "badge-maker",
-  "version": "3.3.1",
+  "version": "6.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./lib/index.js",
+      "default": "./lib/index.js"
+    }
+  },
   "description": "Shields.io badge library",
   "keywords": [
     "GitHub",
@@ -10,24 +18,26 @@
     "shields.io"
   ],
   "types": "index.d.ts",
-  "main": "lib/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/badges/shields.git",
     "directory": "badge-maker"
   },
   "author": "Thaddée Tyl <thaddee.tyl@gmail.com>",
-  "license": "CC0-1.0",
+  "contributors": [
+    "Paul Melnikow",
+    "Pierre-Yves Bigourdan"
+  ],
+  "license": "(MIT OR Apache-2.0)",
   "bugs": {
     "url": "https://github.com/badges/shields/issues"
   },
-  "homepage": "http://shields.io",
+  "homepage": "https://shields.io",
   "bin": {
     "badge": "lib/badge-cli.js"
   },
   "engines": {
-    "node": ">= 12",
-    "npm": ">= 6"
+    "node": ">=22"
   },
   "collective": {
     "type": "opencollective",

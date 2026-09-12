@@ -2,42 +2,43 @@ import {
   decodeDataUrlFromQueryParam,
   prepareNamedLogo,
 } from '../../lib/logos.js'
-import { svg2base64 } from '../../lib/svg-helpers.js'
+import { svg2base64, getIconSize } from '../../lib/svg-helpers.js'
+import { DEFAULT_LOGO_HEIGHT } from '../../badge-maker/lib/constants.js'
 import coalesce from './coalesce.js'
 import toArray from './to-array.js'
 
-// Translate modern badge data to the legacy schema understood by the badge
-// maker. Allow the user to override the label, color, logo, etc. through the
-// query string. Provide support for most badge options via `serviceData` so
-// the Endpoint badge can specify logos and colors, though allow that the
-// user's logo or color to take precedence. A notable exception is the case of
-// errors. When the service specifies that an error has occurred, the user's
-// requested color does not override the error color.
-//
-// Logos are resolved in this manner:
-//
-// 1. When `?logo=` contains the name of one of the Shields logos, or contains
-//    base64-encoded SVG, that logo is used. In the case of a named logo, when
-//    a `&logoColor=` is specified, that color is used. Otherwise the default
-//    color is used. `logoColor` will not be applied to a custom
-//    (base64-encoded) logo; if a custom color is desired the logo should be
-//    recolored prior to making the request. The appearance of the logo can be
-//    customized using `logoWidth`, and in the case of the popout badge,
-//    `logoPosition`. When `?logo=` is specified, any logo-related parameters
-//    specified dynamically by the service, or by default in the service, are
-//    ignored.
-// 2. The second precedence is the dynamic logo returned by a service. This is
-//    used only by the Endpoint badge. The `logoColor` can be overridden by the
-//    query string.
-// 3. In the case of the `social` style only, the last precedence is the
-//    service's default logo. The `logoColor` can be overridden by the query
-//    string.
+/**
+ * Translate modern badge data to the legacy schema understood by the badge
+ * maker. Allows the user to override label, color, logo, etc. through the
+ * query string. Provides support for most badge options via `serviceData` so
+ * the Endpoint badge can specify logos and colors, though the user's logo or
+ * color takes precedence. A notable exception: when the service specifies an
+ * error, the user's color override is disregarded.
+ *
+ * Logos are resolved in this precedence order:
+ *
+ * 1. `?logo=` query param (named simple-icons logo or base64-encoded SVG).
+ * 2. Dynamic logo returned by the service (Endpoint badge only).
+ * 3. Service's default logo (social style only).
+ *
+ * @param {object} overrides - Query-string override values (style, label,
+ *    logo, color, etc.).
+ * @param {object} serviceData - Badge data from the service (message, color,
+ *    logo, cache seconds, etc.).
+ * @param {object} defaultBadgeData - Default badge values (color, label,
+ *    named logo).
+ * @param {object} [context] - Optional context including category and cache
+ *    length.
+ * @param {string} [context.category] - Badge category for the default label.
+ * @param {number} [context._cacheLength] - Default cache duration in seconds.
+ * @returns {object} Normalized badge data object ready for rendering.
+ */
 export default function coalesceBadge(
   overrides,
   serviceData,
   // These two parameters were kept separate to make tests clearer.
   defaultBadgeData,
-  { category, _cacheLength: defaultCacheSeconds } = {}
+  { category, _cacheLength: defaultCacheSeconds } = {},
 ) {
   // The "overrideX" naming is based on services that provide badge
   // parameters themselves, which can be overridden by a query string
@@ -50,16 +51,12 @@ export default function coalesceBadge(
     label: overrideLabel,
     logo: overrideLogo,
     logoColor: overrideLogoColor,
+    logoSize: overrideLogoSize,
     link: overrideLink,
     colorB: legacyOverrideColor,
     colorA: legacyOverrideLabelColor,
   } = overrides
-  let {
-    logoWidth: overrideLogoWidth,
-    logoPosition: overrideLogoPosition,
-    color: overrideColor,
-    labelColor: overrideLabelColor,
-  } = overrides
+  let { color: overrideColor, labelColor: overrideLabelColor } = overrides
 
   // Only use the legacy properties if the new ones are not provided
   if (typeof overrideColor === 'undefined') {
@@ -76,8 +73,6 @@ export default function coalesceBadge(
   if (typeof overrideLabelColor === 'number') {
     overrideLabelColor = `${overrideLabelColor}`
   }
-  overrideLogoWidth = +overrideLogoWidth || undefined
-  overrideLogoPosition = +overrideLogoPosition || undefined
 
   const {
     isError,
@@ -88,8 +83,7 @@ export default function coalesceBadge(
     logoSvg: serviceLogoSvg,
     namedLogo: serviceNamedLogo,
     logoColor: serviceLogoColor,
-    logoWidth: serviceLogoWidth,
-    logoPosition: serviceLogoPosition,
+    logoSize: serviceLogoSize,
     link: serviceLink,
     cacheSeconds: serviceCacheSeconds,
     style: serviceStyle,
@@ -103,12 +97,6 @@ export default function coalesceBadge(
   } = defaultBadgeData
 
   let style = coalesce(overrideStyle, serviceStyle)
-  if (typeof style !== 'string') {
-    style = 'flat'
-  }
-  if (style.startsWith('popout')) {
-    style = style.replace('popout', 'flat')
-  }
   const styleValues = [
     'plastic',
     'flat',
@@ -120,7 +108,7 @@ export default function coalesceBadge(
     style = 'flat'
   }
 
-  let namedLogo, namedLogoColor, logoWidth, logoPosition, logoSvgBase64
+  let namedLogo, namedLogoColor, logoSize, logoWidth, logoSvgBase64
   if (overrideLogo) {
     // `?logo=` could be a named logo or encoded svg.
     const overrideLogoSvgBase64 = decodeDataUrlFromQueryParam(overrideLogo)
@@ -134,30 +122,35 @@ export default function coalesceBadge(
     }
     // If the logo has been overridden it does not make sense to inherit the
     // original width or position.
-    logoWidth = overrideLogoWidth
-    logoPosition = overrideLogoPosition
+    logoSize = overrideLogoSize
   } else {
     if (serviceLogoSvg) {
       logoSvgBase64 = svg2base64(serviceLogoSvg)
     } else {
       namedLogo = coalesce(
         serviceNamedLogo,
-        style === 'social' ? defaultNamedLogo : undefined
+        style === 'social' ? defaultNamedLogo : undefined,
       )
       namedLogoColor = coalesce(overrideLogoColor, serviceLogoColor)
     }
-    logoWidth = coalesce(overrideLogoWidth, serviceLogoWidth)
-    logoPosition = coalesce(overrideLogoPosition, serviceLogoPosition)
+    logoSize = coalesce(overrideLogoSize, serviceLogoSize)
   }
   if (namedLogo) {
+    const iconSize = getIconSize(String(namedLogo).toLowerCase())
+
+    if (iconSize && logoSize === 'auto') {
+      logoWidth = (iconSize.width / iconSize.height) * DEFAULT_LOGO_HEIGHT
+    }
+
     logoSvgBase64 = prepareNamedLogo({
       name: namedLogo,
       color: namedLogoColor,
+      size: logoSize,
       style,
     })
   }
 
-  return {
+  const badgeData = {
     // Use `coalesce()` to support empty labels and messages, as in the static
     // badge.
     label: coalesce(overrideLabel, serviceLabel, defaultLabel, category),
@@ -167,20 +160,29 @@ export default function coalesceBadge(
       isError ? undefined : overrideColor,
       serviceColor,
       defaultColor,
-      'lightgrey'
+      'lightgrey',
     ),
     labelColor: coalesce(
       // In case of an error, disregard user's color override.
       isError ? undefined : overrideLabelColor,
       serviceLabelColor,
-      defaultLabelColor
+      defaultLabelColor,
     ),
     style,
     namedLogo,
     logo: logoSvgBase64,
     logoWidth,
-    logoPosition,
+    logoSize,
     links: toArray(overrideLink || serviceLink),
     cacheLengthSeconds: coalesce(serviceCacheSeconds, defaultCacheSeconds),
   }
+  badgeData.label =
+    typeof badgeData.label === 'string'
+      ? badgeData.label.slice(0, 255)
+      : badgeData.label
+  badgeData.message =
+    typeof badgeData.message === 'string'
+      ? badgeData.message.slice(0, 255)
+      : badgeData.message
+  return badgeData
 }

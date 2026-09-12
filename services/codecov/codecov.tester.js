@@ -10,7 +10,14 @@ t.create('gets coverage status')
   })
 
 t.create('gets coverage status with flag')
-  .get('/github/codecov/example-node.json?flag=istanbul_mocha')
+  .get('/github/codecov/umbrella.json?flag=workerunit')
+  .expectBadge({
+    label: 'coverage',
+    message: isIntegerPercentage,
+  })
+
+t.create('gets coverage status with component')
+  .get('/github/codecov/gazebo.json?component=dir_shared')
   .expectBadge({
     label: 'coverage',
     message: isIntegerPercentage,
@@ -24,7 +31,14 @@ t.create('gets coverage status for branch')
   })
 
 t.create('gets coverage status for branch with flag')
-  .get('/github/codecov/example-node/master.json?flag=istanbul_mocha')
+  .get('/github/codecov/umbrella/main.json?flag=workerunit')
+  .expectBadge({
+    label: 'coverage',
+    message: isIntegerPercentage,
+  })
+
+t.create('gets coverage status for branch with component')
+  .get('/github/codecov/gazebo/main.json?component=dir_shared')
   .expectBadge({
     label: 'coverage',
     message: isIntegerPercentage,
@@ -39,7 +53,16 @@ t.create('handles unknown repository')
 
 t.create('handles unknown repository with flag')
   .get(
-    '/github/codecov2/fake-not-even-a-little-bit-real-node.json?flag=istanbul_mocha'
+    '/github/codecov2/fake-not-even-a-little-bit-real-node.json?flag=istanbul_mocha',
+  )
+  .expectBadge({
+    label: 'coverage',
+    message: 'unknown',
+  })
+
+t.create('handles unknown repository with component')
+  .get(
+    '/github/codecov2/fake-not-even-a-little-bit-real-node.json?component=dir_shared',
   )
   .expectBadge({
     label: 'coverage',
@@ -47,7 +70,14 @@ t.create('handles unknown repository with flag')
   })
 
 t.create('gets coverage status for unknown flag')
-  .get('/github/codecov/example-node.json?flag=unknown_flag')
+  .get('/github/codecov/umbrella.json?flag=unknown_flag')
+  .expectBadge({
+    label: 'coverage',
+    message: 'unknown',
+  })
+
+t.create('gets coverage status for unknown component')
+  .get('/github/codecov/umbrella.json?component=unknown_component')
   .expectBadge({
     label: 'coverage',
     message: 'unknown',
@@ -60,9 +90,9 @@ t.create('handles unauthorized private repository')
   .intercept(nock =>
     nock('https://codecov.io')
       .get('/github/codecov/private-example-python/graph/badge.svg')
-      .reply(200, `<g><text x="105.5" y="14">unknown</text></g>`, {
+      .reply(200, '<g><text x="105.5" y="14">unknown</text></g>', {
         'Content-Type': 'image/svg+xml',
-      })
+      }),
   )
   .expectBadge({
     label: 'coverage',
@@ -78,7 +108,7 @@ t.create('handles unauthorized error (with api token)')
       },
     })
       .get('/github/codecov/private-example-python')
-      .reply(401)
+      .reply(401),
   )
   .expectBadge({
     label: 'coverage',
@@ -87,7 +117,7 @@ t.create('handles unauthorized error (with api token)')
 
 t.create('handles unknown repository (with api token)')
   .get(
-    '/github/codecov2/fake-not-even-a-little-bit-real-python.json?token=a1b2c3d4e5f6g7h8'
+    '/github/codecov2/fake-not-even-a-little-bit-real-python.json?token=a1b2c3d4e5f6g7h8',
   )
   .intercept(nock =>
     nock('https://codecov.io/api', {
@@ -96,7 +126,7 @@ t.create('handles unknown repository (with api token)')
       },
     })
       .get('/github/codecov2/fake-not-even-a-little-bit-real-python')
-      .reply(404)
+      .reply(404),
   )
   .expectBadge({
     label: 'coverage',
@@ -108,11 +138,11 @@ t.create('gets coverage for private repository')
   .intercept(nock =>
     nock('https://codecov.io')
       .get(
-        '/gh/codecov/private-example-python/graph/badge.svg?token=a1b2c3d4e5'
+        '/gh/codecov/private-example-python/graph/badge.svg?token=a1b2c3d4e5',
       )
-      .reply(200, `<g><text x="105.5" y="14">100%</text></g>`, {
+      .reply(200, '<g><text x="105.5" y="14">100%</text></g>', {
         'Content-Type': 'image/svg+xml',
-      })
+      }),
   )
   .expectBadge({
     label: 'coverage',
@@ -134,7 +164,7 @@ t.create('gets coverage for private repository (with api token)')
             c: 94.75,
           },
         },
-      })
+      }),
   )
   .expectBadge({
     label: 'coverage',

@@ -1,40 +1,25 @@
 import Joi from 'joi'
+import qs from 'qs'
 import { nonNegativeInteger } from '../validators.js'
 import {
-  BaseJsonService,
   BaseXmlService,
   NotFound,
-  redirector,
+  retiredService,
+  pathParams,
+  pathParam,
+  queryParam,
 } from '../index.js'
-import {
-  renderVersionBadge,
-  renderDownloadBadge,
-  odataToObject,
-} from './nuget-helpers.js'
+import { renderVersionBadge } from '../version.js'
+import { renderDownloadBadge, odataToObject } from './nuget-helpers.js'
 
 function createFilter({ packageName, includePrereleases }) {
   const releaseTypeFilter = includePrereleases
     ? 'IsAbsoluteLatestVersion eq true'
     : 'IsLatestVersion eq true'
-  return `Id eq '${packageName}' and ${releaseTypeFilter}`
+  return `tolower(Id) eq '${packageName.toLowerCase()}' and ${releaseTypeFilter}`
 }
 
 const versionSchema = Joi.alternatives(Joi.string(), Joi.number())
-
-const jsonSchema = Joi.object({
-  d: Joi.object({
-    results: Joi.array()
-      .items(
-        Joi.object({
-          Version: versionSchema,
-          NormalizedVersion: Joi.string(),
-          DownloadCount: nonNegativeInteger,
-        })
-      )
-      .max(1)
-      .default([]),
-  }).required(),
-}).required()
 
 const xmlSchema = Joi.object({
   feed: Joi.object({
@@ -55,38 +40,29 @@ const queryParamSchema = Joi.object({
 
 async function fetch(
   serviceInstance,
-  { odataFormat, baseUrl, packageName, includePrereleases = false }
+  { baseUrl, packageName, includePrereleases = false },
 ) {
   const url = `${baseUrl}/Packages()`
-  const qs = { $filter: createFilter({ packageName, includePrereleases }) }
+  const searchParams = qs.stringify(
+    {
+      $filter: createFilter({ packageName, includePrereleases }),
+    },
+    { encode: false },
+  )
 
-  let packageData
-  if (odataFormat === 'xml') {
-    const data = await serviceInstance._requestXml({
-      schema: xmlSchema,
-      url,
-      options: { qs },
-    })
-    packageData = odataToObject(data.feed.entry)
-  } else if (odataFormat === 'json') {
-    const data = await serviceInstance._requestJson({
-      schema: jsonSchema,
-      url,
-      options: {
-        headers: { Accept: 'application/atom+json,application/json' },
-        qs,
-      },
-    })
-    packageData = data.d.results[0]
-  } else {
-    throw Error(`Unsupported Atom OData format: ${odataFormat}`)
-  }
+  const data = await serviceInstance._requestXml({
+    schema: xmlSchema,
+    url: `${url}?${searchParams}`,
+    options: {
+      headers: { Accept: 'application/atom+xml,application/xml' },
+    },
+  })
+  const packageData = odataToObject(data.feed.entry)
 
   if (packageData) {
     return packageData
   } else if (!includePrereleases) {
     return fetch(serviceInstance, {
-      odataFormat,
       baseUrl,
       packageName,
       includePrereleases: true,
@@ -110,22 +86,9 @@ function createServiceFamily({
   defaultLabel,
   serviceBaseUrl,
   apiBaseUrl,
-  odataFormat,
   examplePackageName,
-  exampleVersion,
-  examplePrereleaseVersion,
-  exampleDownloadCount,
 }) {
-  let Base
-  if (odataFormat === 'xml') {
-    Base = BaseXmlService
-  } else if (odataFormat === 'json') {
-    Base = BaseJsonService
-  } else {
-    throw Error(`Unsupported Atom OData format: ${odataFormat}`)
-  }
-
-  class NugetVersionService extends Base {
+  class NugetVersionService extends BaseXmlService {
     static name = `${name}Version`
 
     static category = 'version'
@@ -136,58 +99,54 @@ function createServiceFamily({
       queryParamSchema,
     }
 
-    static get examples() {
-      if (!title) return []
+    static get openApi() {
+      if (!title) return {}
 
-      return [
-        {
-          title: `${title} Version`,
-          namedParams: { packageName: examplePackageName },
-          staticPreview: this.render({ version: exampleVersion }),
+      const key = `/${serviceBaseUrl}/v/{packageName}`
+      const route = {}
+      route[key] = {
+        get: {
+          summary: `${title} Version`,
+          parameters: [
+            pathParam({ name: 'packageName', example: examplePackageName }),
+            queryParam({
+              name: 'include_prereleases',
+              schema: { type: 'boolean' },
+              example: null,
+            }),
+          ],
         },
-        {
-          title: `${title} Version (including pre-releases)`,
-          namedParams: { packageName: examplePackageName },
-          queryParams: { include_prereleases: null },
-          staticPreview: this.render({ version: examplePrereleaseVersion }),
-        },
-      ]
+      }
+      return route
     }
 
     static defaultBadgeData = {
       label: defaultLabel,
     }
 
-    static render(props) {
-      return renderVersionBadge(props)
-    }
-
     async handle({ packageName }, queryParams) {
       const packageData = await fetch(this, {
-        odataFormat,
         baseUrl: apiBaseUrl,
         packageName,
         includePrereleases: queryParams.include_prereleases !== undefined,
       })
       const version = packageData.NormalizedVersion || `${packageData.Version}`
-      return this.constructor.render({ version })
+      return renderVersionBadge({ version })
     }
   }
 
-  const NugetVersionRedirector = redirector({
+  const NugetVersionRedirector = retiredService({
     category: 'version',
+    label: defaultLabel,
     route: {
       base: `${serviceBaseUrl}/vpre`,
       pattern: ':packageName',
     },
-    transformPath: ({ packageName }) => `/${serviceBaseUrl}/v/${packageName}`,
-    transformQueryParams: params => ({
-      include_prereleases: null,
-    }),
-    dateAdded: new Date('2019-12-15'),
+    dateAdded: new Date('2025-12-20'),
+    issueUrl: 'https://github.com/badges/shields/pull/11583',
   })
 
-  class NugetDownloadService extends Base {
+  class NugetDownloadService extends BaseXmlService {
     static name = `${name}Downloads`
 
     static category = 'downloads'
@@ -197,16 +156,21 @@ function createServiceFamily({
       pattern: 'dt/:packageName',
     }
 
-    static get examples() {
-      if (!title) return []
+    static get openApi() {
+      if (!title) return {}
 
-      return [
-        {
-          title,
-          namedParams: { packageName: examplePackageName },
-          staticPreview: this.render({ downloads: exampleDownloadCount }),
+      const key = `/${serviceBaseUrl}/dt/{packageName}`
+      const route = {}
+      route[key] = {
+        get: {
+          summary: `${title} Downloads`,
+          parameters: pathParams({
+            name: 'packageName',
+            example: examplePackageName,
+          }),
         },
-      ]
+      }
+      return route
     }
 
     static render(props) {
@@ -215,7 +179,6 @@ function createServiceFamily({
 
     async handle({ packageName }) {
       const packageData = await fetch(this, {
-        odataFormat,
         baseUrl: apiBaseUrl,
         packageName,
       })

@@ -6,6 +6,13 @@ export const t = new ServiceTester({
   pathPrefix: '/jitpack/v',
 })
 
-t.create('jitpack version redirect')
-  .get('/jitpack/maven-simple.svg')
-  .expectRedirect('/jitpack/v/github/jitpack/maven-simple.svg')
+t.create('jitpack version deprecated (no vcs)')
+  .get('/jitpack/maven-simple.json')
+  .expectBadge({
+    label: 'jitpack',
+    message: 'https://github.com/badges/shields/pull/11583',
+  })
+
+t.create('jitpack version redirect (github)')
+  .get('/github/jitpack/maven-simple.svg')
+  .expectRedirect('/jitpack/version/com.github.jitpack/maven-simple.svg')

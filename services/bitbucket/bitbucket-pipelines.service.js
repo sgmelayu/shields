@@ -1,6 +1,11 @@
 import Joi from 'joi'
 import { renderBuildStatusBadge } from '../build-status.js'
-import { BaseJsonService, redirector } from '../index.js'
+import {
+  BaseJsonService,
+  redirector,
+  pathParams,
+  InvalidResponse,
+} from '../index.js'
 
 const bitbucketPipelinesSchema = Joi.object({
   values: Joi.array()
@@ -14,11 +19,14 @@ const bitbucketPipelinesSchema = Joi.object({
               'FAILED',
               'ERROR',
               'STOPPED',
-              'EXPIRED'
+              'EXPIRED',
             ),
-          }).required(),
+          }),
+          stage: Joi.object({
+            name: Joi.string().required(),
+          }),
         }).required(),
-      })
+      }),
     )
     .required(),
 }).required()
@@ -30,17 +38,27 @@ class BitbucketPipelines extends BaseJsonService {
     pattern: ':user/:repo/:branch+',
   }
 
-  static examples = [
-    {
-      title: 'Bitbucket Pipelines',
-      namedParams: {
-        user: 'atlassian',
-        repo: 'adf-builder-javascript',
-        branch: 'task/SECO-2168',
+  static openApi = {
+    '/bitbucket/pipelines/{user}/{repo}/{branch}': {
+      get: {
+        summary: 'Bitbucket Pipelines',
+        parameters: pathParams(
+          {
+            name: 'user',
+            example: 'shields-io',
+          },
+          {
+            name: 'repo',
+            example: 'test-repo',
+          },
+          {
+            name: 'branch',
+            example: 'main',
+          },
+        ),
       },
-      staticPreview: this.render({ status: 'SUCCESSFUL' }),
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'build' }
 
@@ -54,7 +72,7 @@ class BitbucketPipelines extends BaseJsonService {
       url,
       schema: bitbucketPipelinesSchema,
       options: {
-        qs: {
+        searchParams: {
           fields: 'values.state',
           page: 1,
           pagelen: 2,
@@ -63,16 +81,27 @@ class BitbucketPipelines extends BaseJsonService {
           'target.ref_name': branch,
         },
       },
-      errorMessages: { 403: 'private repo' },
+      httpErrors: { 403: 'private repo' },
     })
   }
 
   static transform(data) {
     const values = data.values.filter(
-      value => value.state && value.state.name === 'COMPLETED'
+      value => value.state && value.state.name === 'COMPLETED',
     )
     if (values.length > 0) {
+      if (!values[0].state?.result?.name) {
+        throw new InvalidResponse({ prettyMessage: 'invalid response data' })
+      }
       return values[0].state.result.name
+    }
+    const inProgress = data.values.filter(
+      value => value.state && value.state.name === 'IN_PROGRESS',
+    )
+    if (inProgress.length > 0 && inProgress[0].state?.stage?.name) {
+      // e.g: a pipeline HALTED because the account ran out of build minutes
+      // https://github.com/badges/shields/issues/9096
+      return inProgress[0].state.stage.name.toLowerCase()
     }
     return 'never built'
   }

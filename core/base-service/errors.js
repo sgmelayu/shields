@@ -32,7 +32,7 @@ class ShieldsRuntimeError extends Error {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    * @param {string} message Exception message for debug purposes
    */
@@ -42,6 +42,7 @@ class ShieldsRuntimeError extends Error {
     if (props.underlyingError) {
       this.stack = props.underlyingError.stack
     }
+    this.cacheSeconds = props.cacheSeconds
   }
 }
 
@@ -60,7 +61,7 @@ class NotFound extends ShieldsRuntimeError {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    */
   constructor(props = {}) {
@@ -87,7 +88,7 @@ class InvalidResponse extends ShieldsRuntimeError {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    */
   constructor(props = {}) {
@@ -113,7 +114,7 @@ class Inaccessible extends ShieldsRuntimeError {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    */
   constructor(props = {}) {
@@ -138,7 +139,7 @@ class ImproperlyConfigured extends ShieldsRuntimeError {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    */
   constructor(props = {}) {
@@ -164,7 +165,7 @@ class InvalidParameter extends ShieldsRuntimeError {
   }
 
   /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
+   * @param {RuntimeErrorProps} props
    * Refer to individual attrs
    */
   constructor(props = {}) {
@@ -177,28 +178,6 @@ class InvalidParameter extends ShieldsRuntimeError {
 }
 
 /**
- * Throw this error to indicate that a service is deprecated or removed
- */
-class Deprecated extends ShieldsRuntimeError {
-  get name() {
-    return 'Deprecated'
-  }
-
-  get defaultPrettyMessage() {
-    return 'no longer available'
-  }
-
-  /**
-   * @param {module:core/base-service/errors~RuntimeErrorProps} props
-   * Refer to individual attrs
-   */
-  constructor(props) {
-    const message = 'Deprecated'
-    super(props, message)
-  }
-}
-
-/**
  * @typedef {object} RuntimeErrorProps
  * @property {Error} underlyingError Exception we are wrapping (Optional)
  * @property {object} response Response from an upstream API to provide
@@ -206,6 +185,9 @@ class Deprecated extends ShieldsRuntimeError {
  * @property {string} prettyMessage User-facing error message to override the
  * value of `defaultPrettyMessage()`. This is the text that will appear on the
  * badge when we catch and render the exception (Optional)
+ * @property {number} cacheSeconds Length of time to cache this error response
+ * for. Defaults to the cacheLength of the service class throwing the error
+ * (Optional)
  */
 
 export {
@@ -215,5 +197,4 @@ export {
   InvalidResponse,
   Inaccessible,
   InvalidParameter,
-  Deprecated,
 }

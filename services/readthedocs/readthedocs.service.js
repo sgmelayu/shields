@@ -1,16 +1,24 @@
 import Joi from 'joi'
-import { isBuildStatus, renderBuildStatusBadge } from '../build-status.js'
-import { BaseSvgScrapingService, NotFound } from '../index.js'
-
-const keywords = ['documentation']
+import { renderBuildStatusBadge } from '../build-status.js'
+import { BaseJsonService, NotFound, pathParams } from '../index.js'
 
 const schema = Joi.object({
-  message: Joi.alternatives()
-    .try(isBuildStatus, Joi.equal('unknown'))
+  results: Joi.array()
+    .items(
+      Joi.object({
+        state: Joi.object({
+          code: Joi.string().required(),
+        }).required(),
+        success: Joi.boolean().required(),
+      }),
+    )
     .required(),
 }).required()
 
-export default class ReadTheDocs extends BaseSvgScrapingService {
+const description =
+  '[ReadTheDocs](https://readthedocs.com/) is a hosting service for documentation.'
+
+export default class ReadTheDocs extends BaseJsonService {
   static category = 'build'
 
   static route = {
@@ -18,22 +26,41 @@ export default class ReadTheDocs extends BaseSvgScrapingService {
     pattern: ':project/:version?',
   }
 
-  static examples = [
-    {
-      title: 'Read the Docs',
-      pattern: ':packageName',
-      namedParams: { packageName: 'pip' },
-      staticPreview: this.render({ status: 'passing' }),
-      keywords,
+  static auth = {
+    passKey: 'readthedocs_token',
+    authorizedOrigins: ['https://app.readthedocs.org'],
+  }
+
+  static openApi = {
+    '/readthedocs/{packageName}': {
+      get: {
+        summary: 'Read the Docs',
+        description,
+        parameters: pathParams({
+          name: 'packageName',
+          example: 'pip',
+        }),
+      },
     },
-    {
-      title: 'Read the Docs (version)',
-      pattern: ':packageName/:version',
-      namedParams: { packageName: 'pip', version: 'stable' },
-      staticPreview: this.render({ status: 'passing' }),
-      keywords,
+    '/readthedocs/{packageName}/{version}': {
+      get: {
+        summary: 'Read the Docs (version)',
+        description,
+        parameters: pathParams(
+          {
+            name: 'packageName',
+            example: 'pip',
+          },
+          {
+            name: 'version',
+            example: 'stable',
+          },
+        ),
+      },
     },
-  ]
+  }
+
+  static _cacheLength = 300
 
   static defaultBadgeData = {
     label: 'docs',
@@ -43,19 +70,35 @@ export default class ReadTheDocs extends BaseSvgScrapingService {
     return renderBuildStatusBadge({ status })
   }
 
+  async fetch({ project, version = 'latest' }) {
+    return this._requestJson(
+      this.authHelper.withBearerAuthHeader(
+        {
+          schema,
+          url: `https://app.readthedocs.org/api/v3/projects/${encodeURIComponent(project)}/versions/${encodeURIComponent(version)}/builds/`,
+          options: {
+            searchParams: {
+              fields: 'state,success',
+              limit: 10,
+              running: false,
+            },
+          },
+        },
+        'Token',
+      ),
+    )
+  }
+
   async handle({ project, version }) {
-    const { message: status } = await this._requestSvg({
-      schema,
-      url: `https://readthedocs.org/projects/${encodeURIComponent(
-        project
-      )}/badge/`,
-      options: { qs: { version } },
-    })
-    if (status === 'unknown') {
+    const { results } = await this.fetch({ project, version })
+    const build = results.find(({ state }) => state.code === 'finished')
+    if (!build) {
       throw new NotFound({
-        prettyMessage: 'project or version not found',
+        prettyMessage: 'no finished builds',
       })
     }
-    return this.constructor.render({ status })
+    return this.constructor.render({
+      status: build.success ? 'passing' : 'failing',
+    })
   }
 }

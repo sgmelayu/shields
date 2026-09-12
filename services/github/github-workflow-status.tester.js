@@ -1,43 +1,34 @@
-import Joi from 'joi'
-import { isBuildStatus } from '../build-status.js'
-import { createServiceTester } from '../tester.js'
-export const t = await createServiceTester()
+import { ServiceTester } from '../tester.js'
 
-const isWorkflowStatus = Joi.alternatives()
-  .try(isBuildStatus, Joi.equal('no status'))
-  .required()
+export const t = new ServiceTester({
+  id: 'GithubWorkflowStatus',
+  title: 'Github Workflow Status',
+  pathPrefix: '/github/workflow/status',
+})
 
-t.create('nonexistent repo')
+const expectedDeprecatedResponse = {
+  label: 'githubworkflowstatus',
+  message: 'https://github.com/badges/shields/issues/8671',
+  link: ['https://github.com/badges/shields/issues/8671'],
+  color: 'red',
+}
+
+t.create('retired badge (previously nonexistent repo)')
   .get('/badges/shields-fakeness/fake.json')
-  .expectBadge({
-    label: 'build',
-    message: 'repo, branch, or workflow not found',
-  })
+  .expectBadge(expectedDeprecatedResponse)
 
-t.create('nonexistent workflow')
+t.create('retired badge (previously nonexistent workflow)')
   .get('/actions/toolkit/not-a-real-workflow.json')
-  .expectBadge({
-    label: 'build',
-    message: 'repo, branch, or workflow not found',
-  })
+  .expectBadge(expectedDeprecatedResponse)
 
-t.create('valid workflow')
+t.create('retired badge (previously valid workflow)')
   .get('/actions/toolkit/toolkit-unit-tests.json')
-  .expectBadge({
-    label: 'build',
-    message: isWorkflowStatus,
-  })
+  .expectBadge(expectedDeprecatedResponse)
 
-t.create('valid workflow (branch)')
+t.create('retired badge (previously valid workflow - branch)')
   .get('/actions/toolkit/toolkit-unit-tests/master.json')
-  .expectBadge({
-    label: 'build',
-    message: isWorkflowStatus,
-  })
+  .expectBadge(expectedDeprecatedResponse)
 
-t.create('valid workflow (event)')
+t.create('retired badge (previously valid workflow - event)')
   .get('/actions/toolkit/toolkit-unit-tests.json?event=push')
-  .expectBadge({
-    label: 'build',
-    message: isWorkflowStatus,
-  })
+  .expectBadge(expectedDeprecatedResponse)

@@ -1,25 +1,28 @@
-'use strict'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { expect, use } from 'chai'
+import sinonChai from 'sinon-chai'
+use(sinonChai)
 
-const path = require('path')
-const isSvg = require('is-svg')
-const { spawn } = require('child-process-promise')
-const { expect, use } = require('chai')
-use(require('chai-string'))
-use(require('sinon-chai'))
+const dirName = path.dirname(fileURLToPath(import.meta.url))
 
 function runCli(args) {
-  return spawn('node', [path.join(__dirname, 'badge-cli.js'), ...args], {
-    capture: ['stdout'],
-  })
+  return promisify(execFile)('node', [
+    path.join(dirName, 'badge-cli.js'),
+    ...args,
+  ])
 }
 
 describe('The CLI', function () {
   it('should provide a help message', async function () {
     const { stdout } = await runCli([])
-    expect(stdout).to.startWith('Usage')
+    expect(stdout.startsWith('Usage')).to.be.true
   })
 
   it('should produce default badges', async function () {
+    const { default: isSvg } = await import('is-svg')
     const { stdout } = await runCli(['cactus', 'grown'])
     expect(stdout)
       .to.satisfy(isSvg)
@@ -28,11 +31,13 @@ describe('The CLI', function () {
   })
 
   it('should produce colorschemed badges', async function () {
+    const { default: isSvg } = await import('is-svg')
     const { stdout } = await runCli(['cactus', 'grown', ':green'])
     expect(stdout).to.satisfy(isSvg)
   })
 
   it('should produce right-color badges', async function () {
+    const { default: isSvg } = await import('is-svg')
     const { stdout } = await runCli(['cactus', 'grown', '#abcdef'])
     expect(stdout).to.satisfy(isSvg).and.to.include('#abcdef')
   })

@@ -1,11 +1,12 @@
 import Joi from 'joi'
 import {
-  documentation,
+  documentation as description,
   testResultQueryParamSchema,
+  testResultOpenApiQueryParams,
   renderTestResultBadge,
 } from '../test-results.js'
 import { optionalNonNegativeInteger } from '../validators.js'
-import { InvalidResponse } from '../index.js'
+import { InvalidResponse, queryParam } from '../index.js'
 import JenkinsBase from './jenkins-base.js'
 import {
   buildTreeParamQueryString,
@@ -28,41 +29,35 @@ const schema = Joi.object({
         totalCount: optionalNonNegativeInteger,
         failCount: optionalNonNegativeInteger,
         skipCount: optionalNonNegativeInteger,
-      })
+      }),
     )
     .required(),
 }).required()
 
 export default class JenkinsTests extends JenkinsBase {
-  static category = 'build'
-
+  static category = 'test-results'
   static route = {
     base: 'jenkins',
     pattern: 'tests',
     queryParamSchema: queryParamSchema.concat(testResultQueryParamSchema),
   }
 
-  static examples = [
-    {
-      title: 'Jenkins tests',
-      namedParams: {},
-      queryParams: {
-        compact_message: null,
-        passed_label: 'passed',
-        failed_label: 'failed',
-        skipped_label: 'skipped',
-        jobUrl: 'https://jenkins.sqlalchemy.org/job/alembic_coverage',
+  static openApi = {
+    '/jenkins/tests': {
+      get: {
+        summary: 'Jenkins Tests',
+        description,
+        parameters: [
+          queryParam({
+            name: 'jobUrl',
+            example: 'https://ci.freebsd.org/job/FreeBSD-main-amd64-test',
+            required: true,
+          }),
+          ...testResultOpenApiQueryParams,
+        ],
       },
-      staticPreview: this.render({
-        passed: 477,
-        failed: 2,
-        skipped: 0,
-        total: 479,
-        isCompact: false,
-      }),
-      documentation,
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'tests' }
 
@@ -107,19 +102,19 @@ export default class JenkinsTests extends JenkinsBase {
   async handle(
     namedParams,
     {
-      disableStrictSSL,
       jobUrl,
       compact_message: compactMessage,
       passed_label: passedLabel,
       failed_label: failedLabel,
       skipped_label: skippedLabel,
-    }
+    },
   ) {
     const json = await this.fetch({
       url: buildUrl({ jobUrl }),
       schema,
-      qs: buildTreeParamQueryString('actions[failCount,skipCount,totalCount]'),
-      disableStrictSSL,
+      searchParams: buildTreeParamQueryString(
+        'actions[failCount,skipCount,totalCount]',
+      ),
     })
     const { passed, failed, skipped, total } = this.transform({ json })
     return this.constructor.render({

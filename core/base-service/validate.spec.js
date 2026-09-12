@@ -10,15 +10,11 @@ describe('validate', function () {
     requiredString: Joi.string().required(),
   }).required()
 
-  let sandbox
   beforeEach(function () {
-    sandbox = sinon.createSandbox()
+    sinon.stub(trace, 'logTrace')
   })
   afterEach(function () {
-    sandbox.restore()
-  })
-  beforeEach(function () {
-    sandbox.stub(trace, 'logTrace')
+    sinon.restore()
   })
 
   const ErrorClass = InvalidParameter
@@ -53,7 +49,7 @@ describe('validate', function () {
         sinon.match.string,
         traceSuccessMessage,
         { requiredString: 'bar' },
-        { deep: true }
+        { deep: true },
       )
     })
   })
@@ -64,13 +60,13 @@ describe('validate', function () {
         validate(
           options,
           { requiredString: ['this', "shouldn't", 'work'] },
-          schema
+          schema,
         )
         expect.fail('Expected to throw')
       } catch (e) {
         expect(e).to.be.an.instanceof(InvalidParameter)
         expect(e.message).to.equal(
-          'Invalid Parameter: "requiredString" must be a string'
+          'Invalid Parameter: "requiredString" must be a string',
         )
         expect(e.prettyMessage).to.equal(prettyErrorMessage)
       }
@@ -78,7 +74,7 @@ describe('validate', function () {
         'validate',
         sinon.match.string,
         traceErrorMessage,
-        '"requiredString" must be a string'
+        '"requiredString" must be a string',
       )
     })
 
@@ -90,36 +86,28 @@ describe('validate', function () {
             {
               requiredString: ['this', "shouldn't", 'work'],
             },
-            schema
+            schema,
           )
           expect.fail('Expected to throw')
         } catch (e) {
           expect(e).to.be.an.instanceof(InvalidParameter)
           expect(e.message).to.equal(
-            'Invalid Parameter: "requiredString" must be a string'
+            'Invalid Parameter: "requiredString" must be a string',
           )
           expect(e.prettyMessage).to.equal(
-            `${prettyErrorMessage}: requiredString`
+            `${prettyErrorMessage}: requiredString`,
           )
         }
       })
     })
   })
 
-  it('allowAndStripUnknownKeys', function () {
-    try {
-      validate(
-        { ...options, allowAndStripUnknownKeys: false, includeKeys: true },
-        { requiredString: 'bar', extra: 'nonsense', more: 'bogus' },
-        schema
-      )
-      expect.fail('Expected to throw')
-    } catch (e) {
-      expect(e).to.be.an.instanceof(InvalidParameter)
-      expect(e.message).to.equal(
-        'Invalid Parameter: "extra" is not allowed. "more" is not allowed'
-      )
-      expect(e.prettyMessage).to.equal(`${prettyErrorMessage}: extra, more`)
-    }
+  it('allows but strips unknown keys', function () {
+    const result = validate(
+      { ...options, includeKeys: true },
+      { requiredString: 'bar', extra: 'nonsense', more: 'bogus' },
+      schema,
+    )
+    expect(result).to.deep.equal({ requiredString: 'bar' })
   })
 })

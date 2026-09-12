@@ -1,12 +1,12 @@
 import Joi from 'joi'
-import { BaseJsonService } from '../index.js'
+import LibrariesIoBase from '../librariesio/librariesio-base.js'
 
 const schema = Joi.object()
   .keys({
     normalized_licenses: Joi.array()
       .items(
         // normalized_license may be [] if the package does not declare a license
-        Joi.string()
+        Joi.string(),
       )
       .required(),
 
@@ -17,12 +17,12 @@ const schema = Joi.object()
   })
   .required()
 
-export default class BaseBowerService extends BaseJsonService {
+export default class BaseBowerService extends LibrariesIoBase {
   async fetch({ packageName }) {
     return this._requestJson({
       schema,
-      url: `https://libraries.io/api/bower/${packageName}`,
-      errorMessages: {
+      url: `/bower/${packageName}`,
+      httpErrors: {
         404: 'package not found',
       },
     })

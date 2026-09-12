@@ -9,6 +9,14 @@ import { MetricHelper } from './metric-helper.js'
 import coalesceBadge from './coalesce-badge.js'
 import { prepareRoute, namedParamsForMatch } from './route.js'
 
+/**
+ * Base class for services that generate static badges from route parameters
+ * and query parameters.
+ *
+ * Registers the service route, handles cache validation, invokes the service,
+ * builds the badge data, sets cache headers, renders the badge, and records
+ * request metrics.
+ */
 export default class BaseStaticService extends BaseService {
   static register({ camp, metricInstance }, serviceConfig) {
     const { regex, captureNames } = prepareRoute(this.route)
@@ -33,21 +41,25 @@ export default class BaseStaticService extends BaseService {
         {},
         serviceConfig,
         namedParams,
-        queryParams
+        queryParams,
       )
 
       const badgeData = coalesceBadge(
         queryParams,
         serviceData,
         this.defaultBadgeData,
-        this
+        this,
       )
 
       // The final capture group is the extension.
       const format = (match.slice(-1)[0] || '.svg').replace(/^\./, '')
       badgeData.format = format
 
-      setCacheHeadersForStaticResource(ask.res)
+      let maxAge = 24 * 3600 // 1 day
+      if (!queryParams.logo && !badgeData.isError) {
+        maxAge = 5 * 24 * 3600 // 5 days
+      }
+      setCacheHeadersForStaticResource(ask.res, maxAge)
 
       const svg = makeBadge(badgeData)
       makeSend(format, ask.res, end)(svg)

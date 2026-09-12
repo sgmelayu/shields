@@ -1,30 +1,28 @@
-import { metric } from '../text-formatters.js'
-import { downloadCount as downloadsColor } from '../color-formatters.js'
-import { BaseClojarsService } from './clojars-base.js'
+import { pathParams } from '../index.js'
+import { renderDownloadsBadge } from '../downloads.js'
+import { BaseClojarsService, description } from './clojars-base.js'
 
 export default class ClojarsDownloads extends BaseClojarsService {
   static category = 'downloads'
   static route = { base: 'clojars/dt', pattern: ':clojar+' }
 
-  static examples = [
-    {
-      namedParams: { clojar: 'prismic' },
-      staticPreview: this.render({ downloads: 117 }),
+  static openApi = {
+    '/clojars/dt/{clojar}': {
+      get: {
+        summary: 'Clojars Downloads',
+        description,
+        parameters: pathParams({
+          name: 'clojar',
+          example: 'prismic',
+        }),
+      },
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'downloads' }
 
-  static render({ downloads }) {
-    return {
-      label: 'downloads',
-      message: metric(downloads),
-      color: downloadsColor(downloads),
-    }
-  }
-
   async handle({ clojar }) {
     const json = await this.fetch({ clojar })
-    return this.constructor.render({ downloads: json.downloads })
+    return renderDownloadsBadge({ downloads: json.downloads })
   }
 }

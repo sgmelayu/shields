@@ -1,7 +1,8 @@
 import Joi from 'joi'
-import { metric } from '../text-formatters.js'
+import { renderDownloadsBadge } from '../downloads.js'
 import { nonNegativeInteger } from '../validators.js'
-import { BaseJsonService } from '../index.js'
+import { BaseJsonService, pathParams } from '../index.js'
+import { packageNameDescription } from './npm-base.js'
 
 // https://github.com/npm/registry/blob/master/docs/download-counts.md#output
 const pointResponseSchema = Joi.object({
@@ -13,21 +14,21 @@ const intervalMap = {
     query: 'point/last-week',
     schema: pointResponseSchema,
     transform: json => json.downloads,
-    messageSuffix: '/week',
+    interval: 'week',
   },
   dm: {
     query: 'point/last-month',
     schema: pointResponseSchema,
     transform: json => json.downloads,
-    messageSuffix: '/month',
+    interval: 'month',
   },
   dy: {
     query: 'point/last-year',
     schema: pointResponseSchema,
     transform: json => json.downloads,
-    messageSuffix: '/year',
+    interval: 'year',
   },
-  dt: {
+  d18m: {
     query: 'range/1000-01-01:3000-01-01',
     // https://github.com/npm/registry/blob/master/docs/download-counts.md#output-1
     schema: Joi.object({
@@ -37,7 +38,6 @@ const intervalMap = {
       json.downloads
         .map(item => item.downloads)
         .reduce((accum, current) => accum + current),
-    messageSuffix: '',
   },
 }
 
@@ -48,28 +48,42 @@ export default class NpmDownloads extends BaseJsonService {
 
   static route = {
     base: 'npm',
-    pattern: ':interval(dw|dm|dy|dt)/:scope(@.+)?/:packageName',
+    pattern: ':interval(dw|dm|dy|d18m)/:scope(@.+)?/:packageName',
   }
 
-  static examples = [
-    {
-      title: 'npm',
-      namedParams: { interval: 'dw', packageName: 'localeval' },
-      staticPreview: this.render({ interval: 'dw', downloadCount: 30000 }),
-      keywords: ['node'],
+  static openApi = {
+    '/npm/{interval}/{packageName}': {
+      get: {
+        summary: 'NPM Downloads',
+        parameters: pathParams(
+          {
+            name: 'interval',
+            example: 'dw',
+            description:
+              'Downloads in the last Week, Month, Year, or 18 Months',
+            schema: { type: 'string', enum: this.getEnum('interval') },
+          },
+          {
+            name: 'packageName',
+            example: 'localeval',
+            description: packageNameDescription,
+          },
+        ),
+      },
     },
-  ]
+  }
+
+  static _cacheLength = 7200
 
   // For testing.
   static _intervalMap = intervalMap
 
-  static render({ interval, downloadCount }) {
-    const { messageSuffix } = intervalMap[interval]
-
-    return {
-      message: `${metric(downloadCount)}${messageSuffix}`,
-      color: downloadCount > 0 ? 'brightgreen' : 'red',
-    }
+  static render({ interval, downloadCount: downloads }) {
+    return renderDownloadsBadge({
+      downloads,
+      interval: intervalMap[interval].interval,
+      colorOverride: downloads > 0 ? 'brightgreen' : 'red',
+    })
   }
 
   async handle({ interval, scope, packageName }) {
@@ -79,7 +93,7 @@ export default class NpmDownloads extends BaseJsonService {
     const json = await this._requestJson({
       schema,
       url: `https://api.npmjs.org/downloads/${query}/${slug}`,
-      errorMessages: { 404: 'package not found or too new' },
+      httpErrors: { 404: 'package not found or too new' },
     })
 
     const downloadCount = transform(json)

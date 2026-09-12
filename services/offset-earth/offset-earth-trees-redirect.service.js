@@ -1,15 +1,16 @@
-import { redirector } from '../index.js'
+import { retiredService } from '../index.js'
 
 export default [
   // https://github.com/badges/shields/issues/5433
-  redirector({
+  retiredService({
     name: 'OffsetEarthTreesRedirect',
     category: 'other',
+    label: 'offset-earth',
     route: {
       base: 'offset-earth/trees',
       pattern: ':username',
     },
-    transformPath: ({ username }) => `/ecologi/trees/${username}`,
-    dateAdded: new Date('2020-08-16'),
+    dateAdded: new Date('2025-12-20'),
+    issueUrl: 'https://github.com/badges/shields/pull/11583',
   }),
 ]

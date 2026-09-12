@@ -1,9 +1,10 @@
+import { pathParam } from '../index.js'
 import SonarBase from './sonar-base.js'
 import {
   queryParamSchema,
+  openApiQueryParams,
   getLabel,
   positiveMetricColorScale,
-  keywords,
   documentation,
 } from './sonar-helpers.js'
 
@@ -14,25 +15,35 @@ export default class SonarDocumentedApiDensity extends SonarBase {
 
   static route = {
     base: `sonar/${metric}`,
-    pattern: ':component',
+    pattern: ':component/:branch*',
     queryParamSchema,
   }
 
-  static examples = [
-    {
-      title: 'Sonar Documented API Density',
-      namedParams: {
-        component: 'org.ow2.petals:petals-se-ase',
+  static get openApi() {
+    const routes = {}
+    routes[`/sonar/${metric}/{component}`] = {
+      get: {
+        summary: 'Sonar Documented API Density',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'component', example: 'brave_brave-core' }),
+          ...openApiQueryParams,
+        ],
       },
-      queryParams: {
-        server: 'http://sonar.petalslink.com',
-        sonarVersion: '4.2',
+    }
+    routes[`/sonar/${metric}/{component}/{branch}`] = {
+      get: {
+        summary: 'Sonar Documented API Density (branch)',
+        description: documentation,
+        parameters: [
+          pathParam({ name: 'component', example: 'michelin_kstreamplify' }),
+          pathParam({ name: 'branch', example: 'main' }),
+          ...openApiQueryParams,
+        ],
       },
-      staticPreview: this.render({ density: 82 }),
-      keywords,
-      documentation,
-    },
-  ]
+    }
+    return routes
+  }
 
   static defaultBadgeData = { label: getLabel({ metric }) }
 
@@ -43,11 +54,12 @@ export default class SonarDocumentedApiDensity extends SonarBase {
     }
   }
 
-  async handle({ component }, { server, sonarVersion }) {
+  async handle({ component, branch }, { server, sonarVersion }) {
     const json = await this.fetch({
       sonarVersion,
       server,
       component,
+      branch,
       metricName: metric,
     })
     const metrics = this.transform({ json, sonarVersion })

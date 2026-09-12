@@ -1,27 +1,30 @@
-import { metric } from '../text-formatters.js'
-import { downloadCount } from '../color-formatters.js'
-import { redirector, NotFound } from '../index.js'
-import BaseChromeWebStoreService from './chrome-web-store-base.js'
+import { renderDownloadsBadge } from '../downloads.js'
+import { redirector, NotFound, pathParams } from '../index.js'
+import BaseChromeWebStoreService, {
+  description,
+} from './chrome-web-store-base.js'
 
 class ChromeWebStoreUsers extends BaseChromeWebStoreService {
   static category = 'downloads'
   static route = { base: 'chrome-web-store/users', pattern: ':storeId' }
 
-  static examples = [
-    {
-      title: 'Chrome Web Store',
-      namedParams: { storeId: 'ogffaloegjglncjfehdfplabnoondfjo' },
-      staticPreview: this.render({ downloads: 573 }),
+  static openApi = {
+    '/chrome-web-store/users/{storeId}': {
+      get: {
+        summary: 'Chrome Web Store Users',
+        description,
+        parameters: pathParams({
+          name: 'storeId',
+          example: 'ogffaloegjglncjfehdfplabnoondfjo',
+        }),
+      },
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'users' }
 
-  static render({ downloads }) {
-    return {
-      message: `${metric(downloads)}`,
-      color: downloadCount(downloads),
-    }
+  static transform(users) {
+    return String(users.replaceAll(',', ''))
   }
 
   async handle({ storeId }) {
@@ -30,7 +33,9 @@ class ChromeWebStoreUsers extends BaseChromeWebStoreService {
     if (downloads == null) {
       throw new NotFound({ prettyMessage: 'not found' })
     }
-    return this.constructor.render({ downloads })
+    return renderDownloadsBadge({
+      downloads: this.constructor.transform(downloads),
+    })
   }
 }
 

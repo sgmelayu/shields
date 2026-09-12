@@ -1,5 +1,3 @@
-'use strict'
-
 // Have you identified a contributing guideline that should be included here?
 // Please open a pull request!
 //
@@ -10,20 +8,18 @@
 // To test changes locally:
 // DANGER_GITHUB_API_TOKEN=your-github-api-token npm run danger -- pr https://github.com/badges/shields/pull/2665
 
-const { danger, fail, message, warn } = require('danger')
-const { default: noTestShortcuts } = require('danger-plugin-no-test-shortcuts')
+import { danger, fail, message, warn } from 'danger'
 const { fileMatch } = danger.git
 
 const documentation = fileMatch(
   '**/*.md',
-  'frontend/components/usage.tsx',
-  'frontend/pages/endpoint.tsx'
+  'frontend/docs/**',
+  'frontend/src/**',
 )
 const server = fileMatch('core/server/**.js', '!*.spec.js')
 const serverTests = fileMatch('core/server/**.spec.js')
 const legacyHelpers = fileMatch('lib/**/*.js', '!*.spec.js')
 const legacyHelperTests = fileMatch('lib/**/*.spec.js')
-const logos = fileMatch('logo/*.svg')
 const packageJson = fileMatch('package.json')
 const packageLock = fileMatch('package-lock.json')
 const secretsDocs = fileMatch('doc/server-secrets.md')
@@ -34,13 +30,13 @@ message(
   [
     ':sparkles: Thanks for your contribution to Shields, ',
     `@${danger.github.pr.user.login}!`,
-  ].join('')
+  ].join(''),
 )
 
 const targetBranch = danger.github.pr.base.ref
 if (targetBranch !== 'master') {
   const message = `This PR targets \`${targetBranch}\``
-  const idea = 'It is likely that the target branch should be `master`'
+  const idea = 'It is likely that the target branch should be `master`.'
   warn(`${message} - <i>${idea}</i>`)
 }
 
@@ -49,7 +45,7 @@ if (documentation.edited) {
     [
       'Thanks for contributing to our documentation. ',
       'We :heart: our [documentarians](http://www.writethedocs.org/)!',
-    ].join('')
+    ].join(''),
   )
 }
 
@@ -64,7 +60,7 @@ if (server.modified && !serverTests.modified) {
     [
       'This PR modified the server but none of its tests. <br>',
       "That's okay so long as it's refactoring existing code.",
-    ].join('')
+    ].join(''),
   )
 }
 
@@ -75,18 +71,7 @@ if (legacyHelpers.created) {
     [
       'This PR modified helper functions in `lib/` but not accompanying tests. <br>',
       "That's okay so long as it's refactoring existing code.",
-    ].join('')
-  )
-}
-
-if (logos.created) {
-  message(
-    [
-      ':art: Thanks for submitting a logo. <br>',
-      'Please ensure your contribution follows our ',
-      '[guidance](https://github.com/badges/shields/blob/master/doc/logos.md#contributing-logos) ',
-      'for logo submissions.',
-    ].join('')
+    ].join(''),
   )
 }
 
@@ -95,7 +80,7 @@ if (capitals.created || underscores.created) {
     [
       'JavaScript source files should be named with `kebab-case` ',
       '(dash-separated lowercase).',
-    ].join('')
+    ].join(''),
   )
 }
 
@@ -114,10 +99,10 @@ if (allFiles.length > 100) {
       if (diff.includes('authHelper') && !secretsDocs.modified) {
         warn(
           [
-            `:books: Remember to ensure any changes to \`config.private\` `,
+            ':books: Remember to ensure any changes to `config.private` ',
             `in \`${file}\` are reflected in the [server secrets documentation]`,
-            '(https://github.com/badges/shields/blob/master/doc/server-secrets.md)',
-          ].join('')
+            '(https://github.com/badges/shields/blob/master/doc/server-secrets.md).',
+          ].join(''),
         )
       }
 
@@ -126,8 +111,8 @@ if (allFiles.length > 100) {
           [
             `Found 'assert' statement added in \`${file}\`. <br>`,
             'Please ensure tests are written using Chai ',
-            '[expect syntax](http://chaijs.com/guide/styles/#expect)',
-          ].join('')
+            '[expect syntax](http://chaijs.com/guide/styles/#expect).',
+          ].join(''),
         )
       }
 
@@ -136,7 +121,7 @@ if (allFiles.length > 100) {
           [
             `Found import of '@hapi/joi' in \`${file}\`. <br>`,
             "Joi must be imported as 'joi'.",
-          ].join('')
+          ].join(''),
         )
       }
     })
@@ -169,15 +154,40 @@ affectedServices.forEach(service => {
       [
         `This PR modified service code for <kbd>${service}</kbd> but not its test code. <br>`,
         "That's okay so long as it's refactoring existing code.",
-      ].join('')
+      ].join(''),
     )
   }
 })
 
-// Prevent merging exclusive services tests.
-noTestShortcuts({
-  testFilePredicate: filePath => filePath.endsWith('.tester.js'),
-  patterns: {
-    only: ['only()'],
-  },
-})
+allFiles
+  .filter(file => file.match(/^services\/(.+)\/.+\.service.js$/))
+  .forEach(file => {
+    // eslint-disable-next-line promise/prefer-await-to-then
+    danger.git.diffForFile(file).then(({ diff }) => {
+      if (
+        diff.match(
+          /^\+.*(base|pattern): '.*(download|install|license|version|release).*'/m,
+        )
+      ) {
+        warn(
+          [
+            `Found badge URL that may not follow our standard route abbreviations in \`${file}\`. <br>`,
+            "Please ensure you've reviewed our [conventions]",
+            '(https://github.com/badges/shields/blob/master/doc/badge-urls.md).',
+          ].join(''),
+        )
+      }
+    })
+  })
+
+if (affectedServices.length > 0 || testedServices.length > 0) {
+  if (!/\[.+?\]/.test(danger.github.pr.title)) {
+    warn(
+      [
+        'This PR modified service code. <br>',
+        'Please run tests by [including affected services in the pull request title]',
+        '(https://github.com/badges/shields/blob/master/CONTRIBUTING.md#running-service-tests-in-pull-requests).',
+      ].join(''),
+    )
+  }
+}

@@ -2,13 +2,16 @@
 
 set -euxo pipefail
 
-# Set up a git user
-git config user.name "release[bot]"
-git config user.email "actions@users.noreply.github.com"
+# mark workspace dir as 'safe'
+git config --system --add safe.directory '/github/workspace'
 
 # Find last server-YYYY-MM-DD tag
 git fetch --unshallow --tags
 LAST_TAG=$(git tag | grep server | tail -n 1)
+
+# Set up a git user
+git config user.name "github-actions[bot]"
+git config user.email "github-actions[bot]@users.noreply.github.com"
 
 # Find the marker in CHANGELOG.md
 INSERT_POINT=$(grep -n "^\-\-\-$" CHANGELOG.md | cut -f1 -d:)
@@ -43,12 +46,12 @@ BRANCH_NAME="$RELEASE_NAME"-$(uuidgen | head -c 8)
 git checkout -b "$BRANCH_NAME"
 
 # Commit + push changelog
+TITLE="Changelog for Release $RELEASE_NAME"
 git add CHANGELOG.md
-git commit -m "Update Changelog"
+git commit -m "$TITLE"
 git push origin "$BRANCH_NAME"
 
 # Submit a PR
-TITLE="Changelog for Release $RELEASE_NAME"
 PR_RESP=$(curl https://api.github.com/repos/"$REPO_NAME"/pulls \
     -X POST \
     -H "Authorization: token $GITHUB_TOKEN" \
@@ -56,7 +59,10 @@ PR_RESP=$(curl https://api.github.com/repos/"$REPO_NAME"/pulls \
 
 # Add the 'release' label to the PR
 PR_API_URL=$(echo "$PR_RESP" | jq -r ._links.issue.href)
-curl "$PR_API_URL" \
-    -X POST \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    --data '{"labels":["release"]}'
+curl -L \
+  -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  "$PR_API_URL/labels" \
+  -d '{"labels":["release"]}'

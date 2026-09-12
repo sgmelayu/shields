@@ -3,42 +3,62 @@ import { ServiceTester } from '../tester.js'
 export const t = new ServiceTester({
   id: 'GitlabPipeline',
   title: 'Gitlab Pipeline',
-  pathPrefix: '/gitlab/pipeline',
+  pathPrefix: '/gitlab',
 })
 
-t.create('Pipeline status').get('/gitlab-org/gitlab/v10.7.6.json').expectBadge({
-  label: 'build',
-  message: isBuildStatus,
-})
+t.create('Pipeline status')
+  .get('/pipeline-status/gitlab-org/gitlab.json?branch=ruby-next')
+  .expectBadge({
+    label: 'build',
+    message: isBuildStatus,
+  })
+
+t.create('Pipeline status (nested groups)')
+  .get(
+    '/pipeline-status/megabyte-labs/docker/ci-pipeline/ansible.json?branch=master',
+  )
+  .expectBadge({
+    label: 'build',
+    message: isBuildStatus,
+  })
 
 t.create('Pipeline status (nonexistent branch)')
-  .get('/gitlab-org/gitlab/nope-not-a-branch.json')
+  .get('/pipeline-status/gitlab-org/gitlab.json?branch=nope-not-a-branch')
   .expectBadge({
     label: 'build',
     message: 'branch not found',
   })
 
 // Gitlab will redirect users to a sign-in page
-// (which we ultimately see as a 503 error) in the event
+// (which we ultimately see as a 403 error) in the event
 // a nonexistent, or private, repository is specified.
 // Given the additional complexity that would've been required to
 // present users with a more traditional and friendly 'Not Found'
-// error message, we will simply display inaccessible
+// error message, we will simply display invalid
 // https://github.com/badges/shields/pull/5538
+// https://github.com/badges/shields/pull/9752
 t.create('Pipeline status (nonexistent repo)')
-  .get('/this-repo/does-not-exist/master.json')
+  .get('/pipeline-status/this-repo/does-not-exist.json?branch=master')
   .expectBadge({
     label: 'build',
-    message: 'inaccessible',
+    message: 'invalid',
   })
 
 t.create('Pipeline status (custom gitlab URL)')
-  .get('/GNOME/pango/master.json?gitlab_url=https://gitlab.gnome.org')
+  .get(
+    '/pipeline-status/sdk/kde-builder.json?gitlab_url=https://invent.kde.org&branch=master',
+  )
   .expectBadge({
     label: 'build',
     message: isBuildStatus,
   })
 
 t.create('Pipeline no branch redirect')
-  .get('/gitlab-org/gitlab.svg')
-  .expectRedirect('/gitlab/pipeline/gitlab-org/gitlab/master.svg')
+  .get('/pipeline/gitlab-org/gitlab.svg')
+  .expectRedirect('/gitlab/pipeline-status/gitlab-org/gitlab.svg?branch=master')
+
+t.create('Pipeline legacy route with branch redirect')
+  .get('/pipeline/gitlab-org/gitlab/v10.7.6?style=flat')
+  .expectRedirect(
+    '/gitlab/pipeline-status/gitlab-org/gitlab.svg?style=flat&branch=v10.7.6',
+  )

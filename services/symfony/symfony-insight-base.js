@@ -13,24 +13,29 @@ const schema = Joi.object({
         'running',
         'measured',
         'analyzed',
-        'finished'
+        'finished',
       )
         .allow('')
         .required(),
       grade: Joi.equal('platinum', 'gold', 'silver', 'bronze', 'none'),
-      violations: Joi.object({
-        // RE: https://github.com/NaturalIntelligence/fast-xml-parser/issues/68
-        // The BaseXmlService uses the fast-xml-parser which doesn't support forcing
-        // the xml nodes to always be parsed as an array. Currently, if the response
-        // only contains a single violation then it will be parsed as an object,
-        // otherwise it will be parsed as an array.
-        violation: Joi.array().items(violationSchema).single().required(),
-      }),
+      violations: Joi.alternatives().try(
+        Joi.object({
+          // RE: https://github.com/NaturalIntelligence/fast-xml-parser/issues/68
+          // The BaseXmlService uses the fast-xml-parser which doesn't support forcing
+          // the xml nodes to always be parsed as an array. Currently, if the response
+          // only contains a single violation then it will be parsed as an object,
+          // otherwise it will be parsed as an array.
+          violation: Joi.array().items(violationSchema).single().required(),
+        }),
+        // If no violations are found, the response will be an empty string.
+        Joi.string().allow(''),
+      ),
     }),
   }).required(),
 }).required()
 
-const keywords = ['sensiolabs', 'sensio']
+const description =
+  'SymfonyInsight (formerly SensioLabs) is a code analysis service'
 
 const gradeColors = {
   none: 'red',
@@ -62,7 +67,7 @@ class SymfonyInsightBase extends BaseXmlService {
         options: {
           headers: { Accept: 'application/vnd.com.sensiolabs.insight+xml' },
         },
-        errorMessages: {
+        httpErrors: {
           401: 'not authorized to access project',
           404: 'project not found',
         },
@@ -70,7 +75,7 @@ class SymfonyInsightBase extends BaseXmlService {
           attributeNamePrefix: '',
           ignoreAttributes: false,
         },
-      })
+      }),
     )
   }
 
@@ -124,4 +129,4 @@ class SymfonyInsightBase extends BaseXmlService {
   }
 }
 
-export { SymfonyInsightBase, keywords, gradeColors }
+export { SymfonyInsightBase, description, gradeColors }

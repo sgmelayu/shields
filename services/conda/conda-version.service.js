@@ -1,48 +1,44 @@
-import { addv as versionText } from '../text-formatters.js'
-import { version as versionColor } from '../color-formatters.js'
+import { pathParams } from '../index.js'
+import { renderVersionBadge } from '../version.js'
 import BaseCondaService from './conda-base.js'
 
 export default class CondaVersion extends BaseCondaService {
   static category = 'version'
-  static route = { base: 'conda', pattern: ':variant(v|vn)/:channel/:pkg' }
+  static route = {
+    base: 'conda',
+    pattern: ':variant/:channel/:packageName',
+  }
+  static routeEnum = ['v', 'vn']
 
-  static examples = [
-    {
-      title: 'Conda',
-      namedParams: { channel: 'conda-forge', package: 'python' },
-      pattern: 'v/:channel/:package',
-      staticPreview: this.render({
-        variant: 'v',
-        channel: 'conda-forge',
-        version: '3.7.1',
-      }),
+  static openApi = {
+    '/conda/{variant}/{channel}/{packageName}': {
+      get: {
+        summary: 'Conda Version',
+        parameters: pathParams(
+          {
+            name: 'variant',
+            example: 'vn',
+            schema: { type: 'string', enum: this.getEnum('variant') },
+          },
+          {
+            name: 'channel',
+            example: 'conda-forge',
+          },
+          {
+            name: 'packageName',
+            example: 'python',
+          },
+        ),
+      },
     },
-    {
-      title: 'Conda (channel only)',
-      namedParams: { channel: 'conda-forge', package: 'python' },
-      pattern: 'vn/:channel/:package',
-      staticPreview: this.render({
-        variant: 'vn',
-        channel: 'conda-forge',
-        version: '3.7.1',
-      }),
-    },
-  ]
-
-  static render({ variant, channel, version }) {
-    return {
-      label: variant === 'vn' ? channel : `conda|${channel}`,
-      message: versionText(version),
-      color: versionColor(version),
-    }
   }
 
-  async handle({ variant, channel, pkg }) {
-    const json = await this.fetch({ channel, pkg })
-    return this.constructor.render({
-      variant,
-      channel,
+  async handle({ variant, channel, packageName }) {
+    const json = await this.fetch({ channel, packageName })
+    const defaultLabel = variant === 'vn' ? channel : `conda | ${channel}`
+    return renderVersionBadge({
       version: json.latest_version,
+      defaultLabel,
     })
   }
 }
